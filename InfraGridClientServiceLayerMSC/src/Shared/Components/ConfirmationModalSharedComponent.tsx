@@ -90,7 +90,7 @@ export default function ConfirmationModalSharedComponent({
             size="md"
             onClick={handleCancel}
             disabled={isLoading}
-            className="w-full sm:w-auto justify-center"
+            className="w-full sm:w-auto justify-center !rounded-sm"
           >
             {cancelText}
           </ButtonSharedComponent>
@@ -100,7 +100,7 @@ export default function ConfirmationModalSharedComponent({
             size="md"
             disabled={isLoading || confirmDisabled}
             onClick={handleConfirm}
-            className={`w-full sm:w-auto justify-center ${getConfirmButtonClasses()}`}
+            className={`w-full sm:w-auto justify-center !rounded-sm ${getConfirmButtonClasses()}`}
             icon={
               isLoading ? (
                 <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" />

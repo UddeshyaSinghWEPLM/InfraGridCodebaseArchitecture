@@ -237,7 +237,7 @@ export default function ModalSharedComponent({
             initial="initial"
             animate="animate"
             exit="exit"
-            className={`relative w-[100dvw] sm:w-full ${widthClass} bg-white dark:bg-[#0a0a0c] hairline-border-strong rounded-t-2xl rounded-b-none sm:rounded-2xl shadow-2xl z-10 my-0 sm:my-8 flex flex-col shrink-0 max-h-[92dvh] ${
+            className={`relative w-[100dvw] sm:w-full ${widthClass} bg-white dark:bg-[#0a0a0c] hairline-border-strong rounded-t-sm rounded-b-none sm:rounded-sm shadow-2xl z-10 my-0 sm:my-8 flex flex-col shrink-0 max-h-[92dvh] ${
               heightMode === 'full' ? 'sm:max-h-none' : 'sm:max-h-[90vh]'
             }`}
           >
@@ -262,7 +262,7 @@ export default function ModalSharedComponent({
                     )}
                     <button
                       onClick={handleHeaderClose}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:text-zinc-500 dark:hover:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                      className="p-1.5 rounded-sm text-slate-400 hover:text-slate-600 dark:text-zinc-500 dark:hover:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
                     >
                       <X className="w-5 h-5" />
                     </button>
