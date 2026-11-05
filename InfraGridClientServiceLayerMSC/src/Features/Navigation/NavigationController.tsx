@@ -58,7 +58,7 @@ export default function NavigationController({
               src={weplmLogo}
               alt="We.PLM Logo"
               onClick={onNavigateHome}
-              className="w-10 h-10 sm:w-8 sm:h-8 rounded-lg sm:rounded-sm object-cover shrink-0 shadow-sm border border-slate-200/80 dark:border-zinc-800 cursor-pointer"
+              className="w-10 h-10 sm:w-8 sm:h-8 rounded-sm object-cover shrink-0 shadow-sm border border-slate-200/80 dark:border-zinc-800 cursor-pointer"
             />
             <div className="flex flex-col justify-center cursor-pointer" onClick={onNavigateHome}>
               <h1 className="text-sm sm:text-base font-bold tracking-tight text-slate-900 dark:text-white font-serif-headline leading-tight">

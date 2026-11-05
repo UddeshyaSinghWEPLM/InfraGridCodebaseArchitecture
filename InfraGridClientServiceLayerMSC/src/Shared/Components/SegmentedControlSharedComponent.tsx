@@ -43,16 +43,16 @@ export default function SegmentedControlSharedComponent<T extends string>({
   const displayClassName = desktopOnly ? 'hidden md:flex' : 'flex';
 
   const containerClassName = alwaysFullWidth
-    ? `${displayClassName} items-center p-1 rounded-xl bg-slate-100 dark:bg-zinc-800/80 border border-slate-200/60 dark:border-zinc-700/60 h-11 sm:h-9 w-full`
+    ? `${displayClassName} items-center p-1 rounded-sm bg-slate-100 dark:bg-zinc-800/80 border border-slate-200/60 dark:border-zinc-700/60 h-11 sm:h-9 w-full`
     : fullWidthOnMobile
-      ? `${displayClassName} items-center p-1 rounded-xl bg-slate-100 dark:bg-zinc-800/80 border border-slate-200/60 dark:border-zinc-700/60 h-11 sm:h-9 w-full sm:w-auto`
-      : `${displayClassName} items-center p-1 rounded-xl bg-slate-100 dark:bg-zinc-800/80 border border-slate-200/60 dark:border-zinc-700/60 h-9 w-auto`;
+      ? `${displayClassName} items-center p-1 rounded-sm bg-slate-100 dark:bg-zinc-800/80 border border-slate-200/60 dark:border-zinc-700/60 h-11 sm:h-9 w-full sm:w-auto`
+      : `${displayClassName} items-center p-1 rounded-sm bg-slate-100 dark:bg-zinc-800/80 border border-slate-200/60 dark:border-zinc-700/60 h-9 w-auto`;
 
   const buttonClassName = alwaysFullWidth
-    ? 'flex-1 relative flex items-center justify-center gap-1.5 px-3.5 py-2 sm:py-1.5 h-9 sm:h-7 rounded-lg sm:rounded-md text-xs font-bold transition-colors select-none'
+    ? 'flex-1 relative flex items-center justify-center gap-1.5 px-3.5 py-2 sm:py-1.5 h-9 sm:h-7 rounded-sm text-xs font-bold transition-colors select-none'
     : fullWidthOnMobile
-      ? 'flex-1 sm:flex-initial relative flex items-center justify-center gap-1.5 px-3.5 py-2 sm:py-1.5 h-9 sm:h-7 rounded-lg sm:rounded-md text-xs font-bold transition-colors select-none'
-      : 'relative flex items-center justify-center gap-1.5 px-3.5 py-1.5 h-7 rounded-md text-xs font-bold transition-colors select-none';
+      ? 'flex-1 sm:flex-initial relative flex items-center justify-center gap-1.5 px-3.5 py-2 sm:py-1.5 h-9 sm:h-7 rounded-sm text-xs font-bold transition-colors select-none'
+      : 'relative flex items-center justify-center gap-1.5 px-3.5 py-1.5 h-7 rounded-sm text-xs font-bold transition-colors select-none';
 
   return (
     <div className={`${containerClassName} ${className}`.trim()}>
@@ -77,7 +77,7 @@ export default function SegmentedControlSharedComponent<T extends string>({
             {isActive && (
               <motion.div
                 layoutId={layoutId}
-                className="absolute inset-0 bg-white dark:bg-zinc-700 rounded-lg sm:rounded-md shadow-xs"
+                className="absolute inset-0 bg-white dark:bg-zinc-700 rounded-sm shadow-xs"
                 transition={{ type: 'spring', stiffness: 500, damping: 35 }}
               />
             )}
