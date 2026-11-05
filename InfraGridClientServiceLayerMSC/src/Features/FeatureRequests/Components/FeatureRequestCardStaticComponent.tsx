@@ -104,13 +104,13 @@ export default function FeatureRequestCardStaticComponent({
     <CardSharedComponent
       variant="card"
       hoverable
-      className="flex flex-col gap-3 transition-shadow hover:shadow-md p-4 sm:p-5"
+      className="flex flex-col gap-3 transition-shadow hover:shadow-md p-4 sm:p-5 !rounded-sm"
     >
       {/* Top Header: Category Icon, Title & Badges */}
       <div className="flex items-start justify-between gap-3">
         {/* Module Icon & Title */}
         <div className="flex items-start gap-3 min-w-0 flex-1">
-          <div className="w-8 h-8 rounded-lg bg-[#0C2086] text-white flex items-center justify-center shrink-0 shadow-xs mt-0.5">
+          <div className="w-8 h-8 rounded-sm bg-[#0C2086] text-white flex items-center justify-center shrink-0 shadow-xs mt-0.5">
             {getCategoryIcon(request.category)}
           </div>
           <div className="min-w-0 flex-1">
@@ -151,7 +151,7 @@ export default function FeatureRequestCardStaticComponent({
       </div>
 
       {/* Description Body: Inset with Accent Border */}
-      <div className="border-l-2 border-[#0C2086]/70 dark:border-sky-500/70 bg-slate-50/60 dark:bg-zinc-900/40 pl-3 pr-2.5 py-2.5 rounded-r-md text-xs sm:text-sm text-slate-700 dark:text-zinc-200 leading-relaxed whitespace-pre-line">
+      <div className="border-l-2 border-[#0C2086]/70 dark:border-sky-500/70 bg-slate-50/60 dark:bg-zinc-900/40 pl-3 pr-2.5 py-2.5 rounded-r-sm text-xs sm:text-sm text-slate-700 dark:text-zinc-200 leading-relaxed whitespace-pre-line">
         <div>{displayDescription}</div>
         {isLongDescription && (
           <button
@@ -193,7 +193,7 @@ export default function FeatureRequestCardStaticComponent({
           onClick={onDelete}
           title="Delete this request"
           aria-label="Delete feature request"
-          className="p-1.5 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
+          className="p-1.5 rounded-sm text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
         >
           <Trash2 className="w-3.5 h-3.5" />
         </button>
