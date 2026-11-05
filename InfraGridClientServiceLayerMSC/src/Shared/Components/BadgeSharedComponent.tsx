@@ -15,7 +15,7 @@ export default function BadgeSharedComponent({
   showDot = false,
   className = '',
 }: BadgeSharedComponentProps): React.JSX.Element {
-  const baseStyles = 'inline-flex items-center font-mono font-medium rounded-full';
+  const baseStyles = 'inline-flex items-center font-mono font-medium rounded-sm';
   const sizeStyles = size === 'sm' ? 'text-[10px] px-2 py-0.5 gap-1' : 'text-xs px-2.5 py-1 gap-1.5';
 
   let variantStyles = '';
