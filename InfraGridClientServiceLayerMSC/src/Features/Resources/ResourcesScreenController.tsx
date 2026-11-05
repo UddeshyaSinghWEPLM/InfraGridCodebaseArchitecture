@@ -7,7 +7,6 @@ import CustomSelectSharedComponent, { type SelectOption } from '../../Shared/Com
 import ExpandableSearchSharedComponent from '../../Shared/Components/ExpandableSearchSharedComponent';
 import ViewEditModeToggleSharedComponent from '../../Shared/Components/ViewEditModeToggleSharedComponent';
 import { useIsAdmin } from '../../Utilities/AdminIdentityUtility';
-import ChatAssistantSharedComponent from '../../Shared/Components/ChatAssistantSharedComponent';
 import CopyableTableCellSharedComponent from '../../Shared/Components/CopyableTableCellSharedComponent';
 import ContextMenuSharedComponent, { type ContextMenuItem } from '../../Shared/Components/ContextMenuSharedComponent';
 import ApplicationUserPreferenceUtility from '../../Utilities/ApplicationUserPreferenceUtility';
@@ -735,7 +734,8 @@ export default function ResourcesScreenController(): React.JSX.Element {
             ariaLabel="Search Resources"
           />
 
-          <ChatAssistantSharedComponent />
+          {/* Temporarily removed for InfraGrid - re-add <ChatAssistantSharedComponent />
+              (and its import above) when ready to bring it back. */}
 
           <div className="relative shrink-0">
             <button
