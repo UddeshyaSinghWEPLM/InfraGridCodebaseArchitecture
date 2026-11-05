@@ -98,7 +98,7 @@ export default function ExpandableSearchSharedComponent({
 
   return (
     <div
-      className={`relative h-9 rounded-lg bg-slate-100 dark:bg-zinc-800/80 hairline-border overflow-hidden shrink-0 transition-[width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+      className={`relative h-9 rounded-sm bg-slate-100 dark:bg-zinc-800/80 hairline-border overflow-hidden shrink-0 transition-[width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
         isExpanded ? 'w-56 sm:w-64' : 'w-9'
       }`}
     >
@@ -111,7 +111,7 @@ export default function ExpandableSearchSharedComponent({
         className={`absolute left-0 top-0 h-9 w-9 flex items-center justify-center shrink-0 text-slate-700 dark:text-zinc-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0C2086] dark:focus-visible:ring-blue-400 ${
           isExpanded
             ? 'pointer-events-none'
-            : 'cursor-pointer hover:bg-slate-200 dark:hover:bg-zinc-700/80 transition-colors rounded-lg'
+            : 'cursor-pointer hover:bg-slate-200 dark:hover:bg-zinc-700/80 transition-colors rounded-sm'
         }`}
       >
         <Search className="w-3.5 h-3.5" />
@@ -149,7 +149,7 @@ export default function ExpandableSearchSharedComponent({
             handleCollapse();
           }}
           aria-label="Clear and close search"
-          className="absolute right-0 top-0 h-9 w-8 flex items-center justify-center text-slate-400 hover:text-slate-700 dark:text-zinc-500 dark:hover:text-zinc-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0C2086] dark:focus-visible:ring-blue-400 rounded-lg"
+          className="absolute right-0 top-0 h-9 w-8 flex items-center justify-center text-slate-400 hover:text-slate-700 dark:text-zinc-500 dark:hover:text-zinc-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0C2086] dark:focus-visible:ring-blue-400 rounded-sm"
         >
           <X className="w-3.5 h-3.5" />
         </button>

@@ -99,7 +99,7 @@ export default function ColumnVisibilityDropdownSharedComponent({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: -6 }}
             transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-            className="absolute right-0 top-12 w-[90vw] max-w-[760px] sm:w-[600px] md:w-[760px] z-50 bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-zinc-800 rounded-2xl shadow-2xl p-4 text-xs select-none"
+            className="absolute right-0 top-12 w-[90vw] max-w-[760px] sm:w-[600px] md:w-[760px] z-50 bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-zinc-800 rounded-sm shadow-2xl p-4 text-xs select-none"
           >
             <span className="text-[10px] uppercase font-mono font-semibold tracking-wider text-slate-400 dark:text-zinc-500 block px-1 pb-2">
               Visible Columns
@@ -117,7 +117,7 @@ export default function ColumnVisibilityDropdownSharedComponent({
                     placeholder="Search columns..."
                     aria-label="Search columns"
                     autoComplete="off"
-                    className="w-full h-8 pl-8 pr-2.5 text-xs bg-slate-50 dark:bg-zinc-900/70 border border-slate-200 dark:border-zinc-800 rounded-lg text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-[#0C2086]/50 focus:border-[#0C2086] transition-colors"
+                    className="w-full h-8 pl-8 pr-2.5 text-xs bg-slate-50 dark:bg-zinc-900/70 border border-slate-200 dark:border-zinc-800 rounded-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-[#0C2086]/50 focus:border-[#0C2086] transition-colors"
                   />
                 </div>
               )}
@@ -127,7 +127,7 @@ export default function ColumnVisibilityDropdownSharedComponent({
                 onClick={onClearAll}
                 title="Uncheck all (except locked columns)"
                 aria-label="Uncheck all columns, except locked columns"
-                className="h-8 w-8 shrink-0 flex items-center justify-center rounded-lg bg-slate-50 dark:bg-zinc-900/70 border border-slate-200 dark:border-zinc-800 text-slate-500 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800 hover:text-rose-600 dark:hover:text-rose-400 transition-colors cursor-pointer"
+                className="h-8 w-8 shrink-0 flex items-center justify-center rounded-sm bg-slate-50 dark:bg-zinc-900/70 border border-slate-200 dark:border-zinc-800 text-slate-500 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800 hover:text-rose-600 dark:hover:text-rose-400 transition-colors cursor-pointer"
               >
                 <ListX className="w-3.5 h-3.5" />
               </button>
@@ -141,7 +141,7 @@ export default function ColumnVisibilityDropdownSharedComponent({
                   <label
                     key={column.key}
                     title={column.locked ? 'Always visible — identifies the row' : undefined}
-                    className={`flex items-center gap-2.5 px-2 py-1.5 rounded-lg break-inside-avoid hover:bg-slate-100 dark:hover:bg-zinc-800/80 ${
+                    className={`flex items-center gap-2.5 px-2 py-1.5 rounded-sm break-inside-avoid hover:bg-slate-100 dark:hover:bg-zinc-800/80 ${
                       column.locked ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'
                     } ${index % 2 === 1 ? 'bg-slate-50 dark:bg-zinc-900/50' : ''}`}
                   >
