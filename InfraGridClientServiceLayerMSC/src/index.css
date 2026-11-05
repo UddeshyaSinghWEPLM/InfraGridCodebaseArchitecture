@@ -191,8 +191,8 @@ html.table-sticky-header .data-table-card {
   position: static;
   overflow: hidden;
   background-color: #0c2086;
-  border-top-left-radius: 0.75rem;
-  border-top-right-radius: 0.75rem;
+  border-top-left-radius: 0.25rem;
+  border-top-right-radius: 0.25rem;
 }
 
 html.table-sticky-header .data-table-sticky-header-container {

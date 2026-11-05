@@ -119,7 +119,7 @@ const DataTableContainerSharedComponent = React.forwardRef<HTMLDivElement, DataT
 
     if (!tableElement) {
       return (
-        <CardSharedComponent className="!p-0 data-table-card">
+        <CardSharedComponent className="!p-0 !rounded-sm data-table-card">
           <div ref={setMergedRef} className="data-table-scroll-area">
             {children}
           </div>
@@ -135,7 +135,7 @@ const DataTableContainerSharedComponent = React.forwardRef<HTMLDivElement, DataT
     const restElements = childrenArray.filter((child) => child !== theadElement);
 
     return (
-      <CardSharedComponent className="!p-0 data-table-card">
+      <CardSharedComponent className="!p-0 !rounded-sm data-table-card">
         {theadElement && (
           <div ref={headerContainerRef} className="data-table-sticky-header-container">
             <table
