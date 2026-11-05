@@ -186,12 +186,15 @@ export default function EnvironmentUptimeRequestDetailScreenController(): React.
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             icon={<Search className="w-4 h-4" />}
+            className="!rounded-sm"
           />
           <CustomSelectSharedComponent
             value={selectedStatus}
             options={statusFilterOptions}
             onChange={(val) => setSelectedStatus(val)}
             size="sm"
+            triggerClassName="!rounded-sm"
+            dropdownClassName="!rounded-sm"
           />
         </div>
 
@@ -250,7 +253,7 @@ export default function EnvironmentUptimeRequestDetailScreenController(): React.
         ) : (
           <CardSharedComponent
             variant="card"
-            className="flex-1 min-h-0 overflow-y-auto flex flex-col divide-y divide-slate-200 dark:divide-zinc-800 shadow-none p-0"
+            className="flex-1 min-h-0 overflow-y-auto flex flex-col divide-y divide-slate-200 dark:divide-zinc-800 shadow-none p-0 !rounded-sm"
           >
             <div className="flex divide-x divide-slate-200 dark:divide-zinc-800">
               <DetailFieldRow
@@ -308,7 +311,7 @@ export default function EnvironmentUptimeRequestDetailScreenController(): React.
         {/* Read-only for everyone (including admins) - a non-admin's only
             view of the admin's note, shown whenever one exists. */}
         {matchedRequest && matchedRequest.adminMessage && (
-          <div className="shrink-0 border-l-2 border-[#0C2086]/70 dark:border-sky-500/70 bg-slate-50/60 dark:bg-zinc-900/40 pl-3 pr-2.5 py-2.5 rounded-r-md">
+          <div className="shrink-0 border-l-2 border-[#0C2086]/70 dark:border-sky-500/70 bg-slate-50/60 dark:bg-zinc-900/40 pl-3 pr-2.5 py-2.5 rounded-r-sm">
             <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-zinc-500 mb-0.5">
               Note from Admin
             </div>
@@ -332,7 +335,7 @@ export default function EnvironmentUptimeRequestDetailScreenController(): React.
                 placeholder="Add a note visible to everyone viewing this ticket..."
                 rows={3}
                 maxLength={4000}
-                className="w-full text-sm px-3 py-2.5 rounded-md bg-white dark:bg-[#0a0a0c] text-slate-900 dark:text-zinc-100 hairline-border-strong focus:outline-none focus:border-zinc-900 dark:focus:border-white transition-colors resize-y leading-relaxed"
+                className="w-full text-sm px-3 py-2.5 rounded-sm bg-white dark:bg-[#0a0a0c] text-slate-900 dark:text-zinc-100 hairline-border-strong focus:outline-none focus:border-zinc-900 dark:focus:border-white transition-colors resize-y leading-relaxed"
               />
             </div>
 
@@ -347,6 +350,8 @@ export default function EnvironmentUptimeRequestDetailScreenController(): React.
                   }))}
                   onChange={setStatusDraft}
                   size="sm"
+                  triggerClassName="!rounded-sm"
+                  dropdownClassName="!rounded-sm"
                 />
               </div>
 
@@ -357,6 +362,7 @@ export default function EnvironmentUptimeRequestDetailScreenController(): React.
                   variant="ghost"
                   size="md"
                   disabled={!isStatusEditDirty || updateStatusMutation.isPending}
+                  className="!rounded-sm"
                 >
                   Cancel
                 </ButtonSharedComponent>
@@ -367,6 +373,7 @@ export default function EnvironmentUptimeRequestDetailScreenController(): React.
                   isLoading={updateStatusMutation.isPending}
                   disabled={!isStatusEditDirty}
                   label="Save"
+                  className="!rounded-sm"
                 />
               </div>
             </div>

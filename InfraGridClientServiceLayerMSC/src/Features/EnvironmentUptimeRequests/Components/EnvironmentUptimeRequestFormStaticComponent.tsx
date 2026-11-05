@@ -155,11 +155,11 @@ export default function EnvironmentUptimeRequestFormStaticComponent({
 
   return (
     <React.Fragment>
-    <CardSharedComponent variant="card">
+    <CardSharedComponent variant="card" className="!rounded-sm">
       <div>
         {/* Form Header */}
         <div className="flex items-center gap-2.5 pb-4 mb-5 border-b border-slate-200/80 dark:border-zinc-800">
-          <div className="w-8 h-8 rounded-lg bg-[#0D2086] text-white flex items-center justify-center shrink-0">
+          <div className="w-8 h-8 rounded-sm bg-[#0D2086] text-white flex items-center justify-center shrink-0">
             <CalendarClock className="w-4 h-4" />
           </div>
           <div>
@@ -192,6 +192,8 @@ export default function EnvironmentUptimeRequestFormStaticComponent({
                 icon: <Plus className="w-3.5 h-3.5" />,
                 onClick: () => setIsCreateSponsorModalOpen(true),
               }}
+              triggerClassName="!rounded-sm"
+              dropdownClassName="!rounded-sm"
             />
             {errors.requesterName && (
               <span className="text-xs text-rose-500 mt-1 block">{errors.requesterName}</span>
@@ -212,6 +214,8 @@ export default function EnvironmentUptimeRequestFormStaticComponent({
               }}
               placeholder={EnvironmentUptimeRequestsCON.FIELD_ENVIRONMENT_PLACEHOLDER}
               searchable
+              triggerClassName="!rounded-sm"
+              dropdownClassName="!rounded-sm"
             />
             {errors.environment && (
               <span className="text-xs text-rose-500 mt-1 block">{errors.environment}</span>
@@ -229,6 +233,8 @@ export default function EnvironmentUptimeRequestFormStaticComponent({
               }}
               error={errors.fromAt}
               required
+              triggerClassName="!rounded-sm"
+              dropdownClassName="!rounded-sm"
             />
 
             <CustomDateTimePickerSharedComponent
@@ -241,6 +247,8 @@ export default function EnvironmentUptimeRequestFormStaticComponent({
               }}
               error={errors.toAt}
               required
+              triggerClassName="!rounded-sm"
+              dropdownClassName="!rounded-sm"
             />
           </div>
 
@@ -258,7 +266,7 @@ export default function EnvironmentUptimeRequestFormStaticComponent({
               placeholder={EnvironmentUptimeRequestsCON.FIELD_MESSAGE_PLACEHOLDER}
               rows={5}
               maxLength={EnvironmentUptimeRequestsCON.FIELD_MESSAGE_MAX_LENGTH}
-              className={`w-full text-sm px-3 py-2.5 rounded-md bg-white dark:bg-[#0a0a0c] text-slate-900 dark:text-zinc-100 hairline-border-strong focus:outline-none focus:border-zinc-900 dark:focus:border-white transition-colors resize-y leading-relaxed ${
+              className={`w-full text-sm px-3 py-2.5 rounded-sm bg-white dark:bg-[#0a0a0c] text-slate-900 dark:text-zinc-100 hairline-border-strong focus:outline-none focus:border-zinc-900 dark:focus:border-white transition-colors resize-y leading-relaxed ${
                 errors.message ? 'border-red-500 dark:border-red-500' : ''
               }`}
             />
@@ -278,6 +286,7 @@ export default function EnvironmentUptimeRequestFormStaticComponent({
           size="md"
           icon={<RotateCcw className="w-3.5 h-3.5" />}
           disabled={isSubmitting}
+          className="!rounded-sm"
         >
           {EnvironmentUptimeRequestsCON.BUTTON_RESET_LABEL}
         </ButtonSharedComponent>
@@ -289,6 +298,7 @@ export default function EnvironmentUptimeRequestFormStaticComponent({
           icon={<Send className="w-3.5 h-3.5" />}
           isLoading={isSubmitting}
           label={EnvironmentUptimeRequestsCON.BUTTON_SUBMIT_LABEL}
+          className="!rounded-sm"
         />
       </div>
     </CardSharedComponent>
