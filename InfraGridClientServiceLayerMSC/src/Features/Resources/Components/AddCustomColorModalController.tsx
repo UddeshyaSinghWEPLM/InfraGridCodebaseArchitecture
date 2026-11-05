@@ -162,7 +162,7 @@ export default function AddCustomColorModalController({
       maxWidth="sm"
       footer={
         <div className="flex items-center justify-end gap-3">
-          <ButtonSharedComponent variant="outline" onClick={onClose} disabled={isSubmitting}>
+          <ButtonSharedComponent variant="outline" onClick={onClose} disabled={isSubmitting} className="!rounded-sm">
             Cancel
           </ButtonSharedComponent>
           <PrimaryActionButtonSharedComponent
@@ -170,6 +170,7 @@ export default function AddCustomColorModalController({
             onClick={handleSubmit}
             disabled={!canSubmit}
             isLoading={isSubmitting}
+            className="!rounded-sm"
           />
         </div>
       }
@@ -182,6 +183,7 @@ export default function AddCustomColorModalController({
           onChange={(event) => setColorNameInput(event.target.value)}
           placeholder="e.g. Sunset Orange"
           required
+          className="!rounded-sm"
         />
 
         <SegmentedControlSharedComponent
@@ -217,7 +219,7 @@ export default function AddCustomColorModalController({
               }}
               placeholder="#RRGGBB"
               autoFocus
-              className="flex-1 h-10 px-3 text-xs font-mono rounded-lg bg-white dark:bg-[#0a0a0c] border border-slate-200/80 dark:border-zinc-800 text-slate-900 dark:text-zinc-100 placeholder:text-slate-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-[#0C2086]"
+              className="flex-1 h-10 px-3 text-xs font-mono rounded-sm bg-white dark:bg-[#0a0a0c] border border-slate-200/80 dark:border-zinc-800 text-slate-900 dark:text-zinc-100 placeholder:text-slate-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-[#0C2086]"
             />
           ) : (
             <div className="flex-1 grid grid-cols-3 gap-2">
@@ -243,7 +245,7 @@ export default function AddCustomColorModalController({
                     max={255}
                     value={channel.value}
                     onChange={(event) => channel.setValue(clampByteInput(event.target.value))}
-                    className="w-full h-10 px-2 text-xs text-center font-mono rounded-lg bg-white dark:bg-[#0a0a0c] border border-slate-200/80 dark:border-zinc-800 text-slate-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-[#0C2086]"
+                    className="w-full h-10 px-2 text-xs text-center font-mono rounded-sm bg-white dark:bg-[#0a0a0c] border border-slate-200/80 dark:border-zinc-800 text-slate-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-[#0C2086]"
                   />
                 </div>
               ))}

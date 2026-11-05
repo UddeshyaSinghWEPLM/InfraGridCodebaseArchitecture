@@ -84,10 +84,10 @@ export default function UptimeScheduleModalController({
             {previewValue || 'Nothing selected yet'}
           </p>
           <div className="flex items-center gap-2 shrink-0">
-            <ButtonSharedComponent variant="outline" onClick={onClose} disabled={isSaving}>
+            <ButtonSharedComponent variant="outline" onClick={onClose} disabled={isSaving} className="!rounded-sm">
               Cancel
             </ButtonSharedComponent>
-            <PrimaryActionButtonSharedComponent label="Done" onClick={onSave} disabled={!canSave} isLoading={isSaving} />
+            <PrimaryActionButtonSharedComponent label="Done" onClick={onSave} disabled={!canSave} isLoading={isSaving} className="!rounded-sm" />
           </div>
         </div>
       }
@@ -109,6 +109,8 @@ export default function UptimeScheduleModalController({
               icon: <Plus className="w-3.5 h-3.5" />,
               onClick: onRequestAddSpecialMode,
             }}
+            triggerClassName="!rounded-sm"
+            dropdownClassName="!rounded-sm"
           />
         </div>
 
@@ -129,6 +131,8 @@ export default function UptimeScheduleModalController({
                 icon: <Plus className="w-3.5 h-3.5" />,
                 onClick: onRequestAddOnDemandStatus,
               }}
+              triggerClassName="!rounded-sm"
+              dropdownClassName="!rounded-sm"
             />
           </div>
         )}
@@ -142,7 +146,7 @@ export default function UptimeScheduleModalController({
             onChange={(event) => onNotesChange(event.target.value)}
             placeholder="Optional - shown alongside the schedule above"
             rows={3}
-            className="w-full px-2.5 py-2 text-xs bg-slate-50 dark:bg-zinc-900/70 border border-slate-200 dark:border-zinc-800 rounded-lg text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-[#0C2086]/50 resize-none"
+            className="w-full px-2.5 py-2 text-xs bg-slate-50 dark:bg-zinc-900/70 border border-slate-200 dark:border-zinc-800 rounded-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-[#0C2086]/50 resize-none"
           />
         </div>
 
@@ -156,7 +160,7 @@ export default function UptimeScheduleModalController({
               return (
                 <label
                   key={day}
-                  className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg cursor-pointer text-xs text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-900/60"
+                  className="flex items-center gap-2.5 px-3 py-1.5 rounded-sm cursor-pointer text-xs text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-900/60"
                 >
                   <input
                     type="checkbox"
@@ -181,7 +185,7 @@ export default function UptimeScheduleModalController({
                 type="time"
                 value={startTime}
                 onChange={(event) => onStartTimeChange(event.target.value)}
-                className="w-full h-9 px-2.5 text-xs bg-slate-50 dark:bg-zinc-900/70 border border-slate-200 dark:border-zinc-800 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#0C2086]/50"
+                className="w-full h-9 px-2.5 text-xs bg-slate-50 dark:bg-zinc-900/70 border border-slate-200 dark:border-zinc-800 rounded-sm text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#0C2086]/50"
               />
             </div>
             <div className="flex-1 space-y-1">
@@ -192,7 +196,7 @@ export default function UptimeScheduleModalController({
                 type="time"
                 value={endTime}
                 onChange={(event) => onEndTimeChange(event.target.value)}
-                className="w-full h-9 px-2.5 text-xs bg-slate-50 dark:bg-zinc-900/70 border border-slate-200 dark:border-zinc-800 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#0C2086]/50"
+                className="w-full h-9 px-2.5 text-xs bg-slate-50 dark:bg-zinc-900/70 border border-slate-200 dark:border-zinc-800 rounded-sm text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#0C2086]/50"
               />
             </div>
           </div>

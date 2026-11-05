@@ -61,7 +61,7 @@ export default function AdminLoginModalController({
       maxWidth="sm"
       footer={
         <div className="flex items-center justify-end gap-3">
-          <ButtonSharedComponent variant="outline" onClick={onClose} disabled={loginMutation.isPending}>
+          <ButtonSharedComponent variant="outline" onClick={onClose} disabled={loginMutation.isPending} className="!rounded-sm">
             Cancel
           </ButtonSharedComponent>
           <PrimaryActionButtonSharedComponent
@@ -69,6 +69,7 @@ export default function AdminLoginModalController({
             onClick={() => void handleLogin()}
             disabled={!email.trim() || !password}
             isLoading={loginMutation.isPending}
+            className="!rounded-sm"
           />
         </div>
       }
@@ -81,6 +82,7 @@ export default function AdminLoginModalController({
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           required
+          className="!rounded-sm"
         />
 
         <InputSharedComponent
@@ -90,6 +92,7 @@ export default function AdminLoginModalController({
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           required
+          className="!rounded-sm"
         />
 
         {errorMessage && <p className="text-xs text-rose-500">{errorMessage}</p>}

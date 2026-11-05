@@ -57,7 +57,7 @@ export default function EditSubscriptionDisplayNameModalController({
       maxWidth="sm"
       footer={
         <div className="flex items-center justify-end gap-3">
-          <ButtonSharedComponent variant="outline" onClick={onClose} disabled={updateDisplayNameMutation.isPending}>
+          <ButtonSharedComponent variant="outline" onClick={onClose} disabled={updateDisplayNameMutation.isPending} className="!rounded-sm">
             Cancel
           </ButtonSharedComponent>
           <ButtonSharedComponent
@@ -65,6 +65,7 @@ export default function EditSubscriptionDisplayNameModalController({
             onClick={handleSave}
             disabled={!displayName.trim()}
             isLoading={updateDisplayNameMutation.isPending}
+            className="!rounded-sm"
           >
             Save
           </ButtonSharedComponent>
@@ -76,6 +77,7 @@ export default function EditSubscriptionDisplayNameModalController({
           label="Display Name"
           value={displayName}
           onChange={(event) => setDisplayName(event.target.value)}
+          className="!rounded-sm"
         />
         <p className="text-xs text-slate-400 dark:text-zinc-500">
           This only renames the label on this page — it won't touch the Subscription column on already-synced

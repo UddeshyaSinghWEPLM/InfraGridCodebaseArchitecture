@@ -177,7 +177,7 @@ export default function AddLegendModalController({
         maxWidth="sm"
         footer={
           <div className="flex items-center justify-end gap-3">
-            <ButtonSharedComponent variant="outline" onClick={onClose} disabled={isSubmitting}>
+            <ButtonSharedComponent variant="outline" onClick={onClose} disabled={isSubmitting} className="!rounded-sm">
               Cancel
             </ButtonSharedComponent>
             <PrimaryActionButtonSharedComponent
@@ -185,6 +185,7 @@ export default function AddLegendModalController({
               onClick={handleSubmit}
               disabled={!canSubmit}
               isLoading={isSubmitting}
+              className="!rounded-sm"
             />
           </div>
         }
@@ -197,6 +198,7 @@ export default function AddLegendModalController({
             onChange={(event) => setNameInput(event.target.value)}
             placeholder="e.g. Pending migration"
             required
+            className="!rounded-sm"
           />
           {isNameTaken && trimmedName.length > 0 && (
             <p className="text-xs text-rose-500">A legend named &quot;{trimmedName}&quot; already exists.</p>

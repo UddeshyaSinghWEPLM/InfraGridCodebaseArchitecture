@@ -60,7 +60,7 @@ export default function AddSubscriptionModalController({
       maxWidth="md"
       footer={
         <div className="flex items-center justify-end gap-3">
-          <ButtonSharedComponent variant="outline" onClick={onClose} disabled={addSubscriptionMutation.isPending}>
+          <ButtonSharedComponent variant="outline" onClick={onClose} disabled={addSubscriptionMutation.isPending} className="!rounded-sm">
             Cancel
           </ButtonSharedComponent>
           <ButtonSharedComponent
@@ -68,6 +68,7 @@ export default function AddSubscriptionModalController({
             onClick={handleAdd}
             disabled={!selectedAzureSubscriptionId}
             isLoading={addSubscriptionMutation.isPending}
+            className="!rounded-sm"
           >
             Add Subscription
           </ButtonSharedComponent>
@@ -82,10 +83,12 @@ export default function AddSubscriptionModalController({
           options={pickerOptions}
           placeholder={isLoadingAvailable ? 'Loading subscriptions…' : 'Select a subscription…'}
           searchable
+          triggerClassName="!rounded-sm"
+          dropdownClassName="!rounded-sm"
         />
 
         {!isLoadingAvailable && pickerOptions.length === 0 && (
-          <div className="flex items-start gap-2.5 text-xs text-slate-500 dark:text-zinc-400 bg-slate-50 dark:bg-zinc-900/60 rounded-lg p-3">
+          <div className="flex items-start gap-2.5 text-xs text-slate-500 dark:text-zinc-400 bg-slate-50 dark:bg-zinc-900/60 rounded-sm p-3">
             <Cloud className="w-4 h-4 shrink-0 mt-0.5" />
             <span>
               No unconfigured subscriptions were found — either every subscription visible to this app's Azure
