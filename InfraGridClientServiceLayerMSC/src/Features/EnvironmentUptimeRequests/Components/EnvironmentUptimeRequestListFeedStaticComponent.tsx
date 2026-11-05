@@ -135,6 +135,7 @@ export default function EnvironmentUptimeRequestListFeedStaticComponent({
                 : 'Try adjusting your search query or filter to find what you are looking for.'
             }
             icon={<CalendarX2 className="w-8 h-8 text-slate-400" />}
+            className="!rounded-sm"
           />
         ) : (
           filteredRequests.map((req) => (

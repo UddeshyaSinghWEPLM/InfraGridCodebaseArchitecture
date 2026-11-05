@@ -132,6 +132,7 @@ export default function FeatureRequestListFeedStaticComponent({
                 ? 'Be the first to submit a suggestion or new requirement using the form on the left.'
                 : 'Try adjusting your search query or filter options to find what you are looking for.'
             }
+            className="!rounded-sm"
             icon={<Inbox className="w-8 h-8 text-slate-400" />}
           />
         ) : (

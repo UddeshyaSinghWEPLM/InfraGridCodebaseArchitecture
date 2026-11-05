@@ -204,6 +204,7 @@ export default function EnvironmentUptimeRequestDetailScreenController(): React.
               title="No Matching Requests"
               description="Try adjusting your search query or filter to find what you are looking for."
               icon={<SearchX className="w-8 h-8 text-slate-400" />}
+              className="!rounded-sm"
             />
           ) : (
             filteredRequests.map((req) => (
@@ -249,6 +250,7 @@ export default function EnvironmentUptimeRequestDetailScreenController(): React.
             title={EnvironmentUptimeRequestsCON.DETAIL_NOT_FOUND_TITLE}
             description={EnvironmentUptimeRequestsCON.DETAIL_NOT_FOUND_DESCRIPTION}
             icon={<SearchX className="w-8 h-8 text-slate-400" />}
+            className="!rounded-sm"
           />
         ) : (
           <CardSharedComponent
