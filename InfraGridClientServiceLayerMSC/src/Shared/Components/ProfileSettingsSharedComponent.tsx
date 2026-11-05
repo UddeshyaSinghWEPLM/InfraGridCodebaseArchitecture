@@ -255,7 +255,7 @@ export default function ProfileSettingsSharedComponent({
                   aria-label="Profile and preferences"
                   tabIndex={-1}
                   transition={SPRING_TRANSITION}
-                  className="pointer-events-auto relative w-full max-w-4xl max-h-[90dvh] overflow-y-auto bg-white dark:bg-[#0c0c0e] hairline-border-strong rounded-2xl shadow-2xl p-5 sm:p-6 text-xs space-y-4 focus:outline-none"
+                  className="pointer-events-auto relative w-full max-w-4xl max-h-[90dvh] overflow-y-auto bg-white dark:bg-[#0c0c0e] hairline-border-strong rounded-sm shadow-2xl p-5 sm:p-6 text-xs space-y-4 focus:outline-none"
                 >
                   {/* Floating close button */}
                   <button
@@ -331,7 +331,7 @@ export default function ProfileSettingsSharedComponent({
                           type="button"
                           onPointerDown={() => ApplicationHapticsUtility.current.triggerHapticFeedback(12)}
                           onClick={handleOpenAdminLogin}
-                          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-slate-100 dark:bg-zinc-800/40 text-slate-700 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-800/60 transition-colors cursor-pointer font-bold text-xs"
+                          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-sm bg-slate-100 dark:bg-zinc-800/40 text-slate-700 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-800/60 transition-colors cursor-pointer font-bold text-xs"
                         >
                           <ShieldCheck className="w-4 h-4" />
                           <span>Admin Login</span>
@@ -342,7 +342,7 @@ export default function ProfileSettingsSharedComponent({
                         <button
                           type="button"
                           onPointerDown={() => ApplicationHapticsUtility.current.triggerHapticFeedback(12)}
-                          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-slate-100 dark:bg-zinc-800/40 text-slate-700 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-800/60 transition-colors cursor-pointer font-bold text-xs"
+                          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-sm bg-slate-100 dark:bg-zinc-800/40 text-slate-700 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-800/60 transition-colors cursor-pointer font-bold text-xs"
                         >
                           <History className="w-4 h-4" />
                           <span>Edit History</span>
@@ -353,7 +353,7 @@ export default function ProfileSettingsSharedComponent({
                           type="button"
                           onPointerDown={() => ApplicationHapticsUtility.current.triggerHapticFeedback(12)}
                           onClick={handleNavigateToSettings}
-                          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-slate-100 dark:bg-zinc-800/40 text-slate-700 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-800/60 transition-colors cursor-pointer font-bold text-xs"
+                          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-sm bg-slate-100 dark:bg-zinc-800/40 text-slate-700 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-800/60 transition-colors cursor-pointer font-bold text-xs"
                         >
                           <Settings className="w-4 h-4" />
                           <span>Settings</span>
@@ -435,7 +435,7 @@ export default function ProfileSettingsSharedComponent({
                           type="button"
                           onPointerDown={() => ApplicationHapticsUtility.current.triggerHapticFeedback(12)}
                           onClick={handleInitiateSignOut}
-                          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer font-bold text-xs"
+                          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-sm text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer font-bold text-xs"
                         >
                           <LogOut className="w-4 h-4" />
                           <span>Sign Out</span>
