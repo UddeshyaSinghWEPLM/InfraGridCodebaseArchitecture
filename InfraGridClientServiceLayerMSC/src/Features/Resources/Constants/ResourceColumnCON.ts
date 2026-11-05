@@ -1,0 +1,133 @@
+// Column order and labels mirror the original spreadsheet exactly — labels
+// are the literal legacy header text (per the naming rule: UI-facing text is
+// exempt from the project's code-identifier naming conventions).
+export interface ResourceColumnDef {
+  key: string;
+  label: string;
+  // Locked columns identify the row itself (hostname, environment) — hiding
+  // them would leave a row of data with no way to tell what it belongs to,
+  // so they're always visible and can't be unchecked in the column picker.
+  locked?: boolean;
+}
+
+export default class ResourceColumnCON {
+  // The four Auto Shutdown columns that used to live here were removed -
+  // Sync never actually wrote them (the schema anticipated it, the mapping
+  // code never shipped), replaced by auto-discovered "StartStop_*" Azure
+  // tag columns instead (see ResourceInterfaceModel.startStopTags and
+  // ResourcesScreenController's own dynamicStartStopColumns). Those columns
+  // aren't listed here since the set of tag keys isn't fixed/known at
+  // compile time - a brand-new "StartStop_X" tag in Azure shows up as a new
+  // column automatically on its next sync, no code change needed.
+  public static readonly COLUMNS: ResourceColumnDef[] = [
+    { key: 'hostname', label: 'HOSTNAME', locked: true },
+    { key: 'environmentTag', label: 'ENVIRONMENT (TAG)', locked: true },
+    { key: 'function', label: 'FUNCTION' },
+    { key: 'status', label: 'STATUS' },
+    { key: 'dailyBackupTime', label: 'Daily Backup Time (CET)' },
+    { key: 'cronJobsTaskScheduler', label: 'Cronjobs / Task scheduler' },
+    { key: 'dns', label: 'DNS' },
+    { key: 'url', label: 'URL' },
+    { key: 'privateIPAddress', label: 'PRIVATE IP ADDRESS' },
+    { key: 'category', label: 'TYPE' },
+    { key: 'subscription', label: 'SUBSCRIPTION' },
+    { key: 'spinner', label: 'Spinner_R2024x_AtlasCopco_Exp29Oct2026' },
+    { key: 'resourceGroup', label: 'RESOURCE GROUP' },
+    { key: 'location', label: 'LOCATION' },
+    { key: 'virtualNetworkSubnet', label: 'VIRTUAL NETWORK/SUBNET' },
+    { key: 'proximityGroup', label: 'PROXIMITY GROUP' },
+    { key: 'operatingSystem', label: 'OPERATING SYSTEM' },
+    { key: 'size', label: 'SIZE' },
+    { key: 'cpuCores', label: 'CPU' },
+    { key: 'ramGB', label: 'RAM' },
+    { key: 'disk1OSPerformance', label: 'DISK 1 (OS) PERFORMANCE' },
+    { key: 'disk2DataPerformance', label: 'DISK 2 (DATA) PERFORMANCE' },
+    { key: 'disk3DataType', label: 'DISK 3 (DATA) TYPE3' },
+    { key: 'disk4DataType', label: 'DISK 4 (DATA) TYPE4' },
+    { key: 'disk5DataType', label: 'DISK 5 (DATA) TYPE5' },
+    { key: 'disk6DataType', label: 'DISK 6 (DATA) TYPE6' },
+    { key: 'databaseInstance', label: 'Database Instance' },
+    { key: 'databaseName', label: 'Database Name' },
+    { key: 'publicIPAddress', label: 'PUBLIC IP ADDRESS' },
+    { key: 'disks', label: 'DISKS' },
+    { key: 'planVersion', label: 'PLAN/VERSION' },
+    { key: 'backupSchedule', label: 'Backup Schedule' },
+    { key: 'backupStatus', label: 'Backup Status' },
+    { key: 'infrastructureSupportAzure', label: 'Infrastucture Support (Azure)' },
+    { key: 'infrastructureSupportServiceLevel', label: 'Infrastucture Support Service Level (Insight)' },
+    { key: 'dbaSupport', label: 'DBA Support' },
+    { key: 'dbaSupportServiceLevel', label: 'DBA Support Service Level' },
+    { key: 'protocol', label: 'Protocol' },
+    { key: 'port', label: 'Port' },
+    { key: 'tomEEPortConnector', label: 'TomEE Port Connector' },
+    { key: 'smtpEnabled', label: 'SMTP Enabled' },
+    { key: 'smtpHostname', label: 'SMTP Hostname' },
+    { key: 'smtpSender', label: 'SMTP Sender' },
+    { key: 'comment', label: 'Comment' },
+    { key: 'oracleDBASupportRequired', label: 'Oracle DBA Support Required' },
+    { key: 'javaSupportRequired', label: 'JAVA Support Required' },
+    { key: 'apacheSupportRequired', label: 'Apache Support Required' },
+    { key: 'backupRequired', label: 'Backup Required' },
+    { key: 'osSupportIncludingPatching', label: 'OS Support(inc patching)' },
+    { key: 'azureMonitoringSetupRequired', label: 'Azure montioring setup required' },
+    { key: 'responseSLARequirement', label: 'Response SLA Requirement' },
+    { key: 'atosAgentDeployed', label: 'Atos Agent Deployed' },
+    { key: 'threeDExperienceSXILicense', label: '3DExperience SXI License' },
+    { key: 'monitoringHealthcheckURL', label: 'Monitoring healthcheck URL' },
+    { key: 'vmCreationDate', label: 'VM creation date' },
+    { key: 'vmDeletionDate', label: 'VM deletion date' },
+    { key: 'newHostname', label: 'New HOSTName' },
+  ];
+
+  // Derived from COLUMNS above, not hand-maintained separately - a class
+  // static property can read an earlier static property of the same class
+  // during initialization, so these stay in sync with COLUMNS automatically.
+  public static readonly ALL_COLUMN_KEYS: string[] = ResourceColumnCON.COLUMNS.map((column) => column.key);
+
+  public static readonly LOCKED_COLUMN_KEYS: Set<string> = new Set(
+    ResourceColumnCON.COLUMNS.filter((column) => column.locked).map((column) => column.key)
+  );
+
+  // Columns whose values repeat often enough across resources that a
+  // multi-select dropdown filter in the header is actually useful - everything
+  // else here is either free-text/near-unique per row (hostname, IPs, URLs,
+  // comments) or a date better served by a range control than a value list.
+  public static readonly FILTERABLE_COLUMN_KEYS: string[] = [
+    'environmentTag',
+    'status',
+    'subscription',
+    'resourceGroup',
+    'location',
+    'operatingSystem',
+    'size',
+    'category',
+    'function',
+    'proximityGroup',
+    'virtualNetworkSubnet',
+    'protocol',
+    'infrastructureSupportServiceLevel',
+    'dbaSupportServiceLevel',
+    'backupStatus',
+    'cronJobsTaskScheduler',
+    'responseSLARequirement',
+    'disk1OSPerformance',
+    'disk2DataPerformance',
+    'disk3DataType',
+    'disk4DataType',
+    'disk5DataType',
+    'disk6DataType',
+    'smtpEnabled',
+    'backupRequired',
+    'oracleDBASupportRequired',
+    'javaSupportRequired',
+    'apacheSupportRequired',
+    'osSupportIncludingPatching',
+    'azureMonitoringSetupRequired',
+    'atosAgentDeployed',
+    'threeDExperienceSXILicense',
+  ];
+
+  public static readonly FILTERABLE_COLUMN_KEY_SET: Set<string> = new Set(
+    ResourceColumnCON.FILTERABLE_COLUMN_KEYS
+  );
+}

@@ -1,0 +1,416 @@
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
+import { motion, AnimatePresence } from 'motion/react';
+import { ChevronDown, Check, Search, Sparkles } from 'lucide-react';
+import ApplicationHapticsUtility from '../../Utilities/ApplicationHapticsUtility';
+
+export interface SelectOption {
+  value: string;
+  label: string;
+  sublabel?: string;
+  icon?: React.ReactNode;
+}
+
+export interface SelectFooterAction {
+  label: string;
+  icon?: React.ReactNode;
+  onClick: () => void;
+}
+
+export interface CustomSelectSharedComponentProps {
+  label?: string;
+  // Single-select (default): value/onChange carry the one selected value.
+  // Multi-select (multiple: true): values/onChangeMultiple carry the set
+  // instead, value/onChange are ignored, and `placeholder` doubles as the
+  // label for the "select everything off" row at the top of the list (and
+  // for the trigger's own 0-selected text) - the same "All ___" convention
+  // single-select already uses for its own empty state.
+  value?: string;
+  options: SelectOption[];
+  onChange?: (value: string) => void;
+  multiple?: boolean;
+  values?: string[];
+  onChangeMultiple?: (values: string[]) => void;
+  placeholder?: string;
+  className?: string;
+  triggerClassName?: string;
+  // Appended to the trigger's chevron icon, which otherwise always renders
+  // slate/zinc - needed when the trigger itself sits on a dark/colored
+  // background (e.g. a table header) rather than the default white card.
+  chevronClassName?: string;
+  dropdownClassName?: string;
+  size?: 'sm' | 'md';
+  searchable?: boolean;
+  searchPlaceholder?: string;
+  enableCustomValue?: boolean;
+  customValuePlaceholder?: string;
+  customValueLabel?: string;
+  formatDisplayValue?: (val: string) => string;
+  footerAction?: SelectFooterAction;
+  onOpenChange?: (isOpen: boolean) => void;
+  disabled?: boolean;
+  // 'left' (default, unchanged for every existing caller): the panel's
+  // top-left corner anchors to the trigger's bottom-left, growing rightward
+  // past the trigger's own width when the panel's min-width needs more room
+  // than a narrow trigger provides. 'right': anchors the panel's top-right
+  // corner to the trigger's bottom-right instead, growing leftward - for a
+  // narrow trigger near the right edge of its container (e.g. a table's
+  // last column), where growing rightward would overflow.
+  dropdownAnchor?: 'left' | 'right';
+  usePortal?: boolean;
+  initialOpen?: boolean;
+}
+
+export default function CustomSelectSharedComponent({
+  label,
+  value,
+  options,
+  onChange,
+  multiple = false,
+  values = [],
+  onChangeMultiple,
+  placeholder = 'Select option...',
+  className = 'w-full',
+  triggerClassName,
+  dropdownClassName,
+  size = 'md',
+  chevronClassName,
+  searchable = false,
+  searchPlaceholder = 'Search options or enter custom value...',
+  enableCustomValue = false,
+  formatDisplayValue,
+  footerAction,
+  onOpenChange,
+  disabled = false,
+  dropdownAnchor = 'left',
+  usePortal = false,
+  initialOpen = false,
+}: CustomSelectSharedComponentProps): React.JSX.Element {
+  const [isOpen, setIsOpen] = useState(initialOpen);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [triggerRect, setTriggerRect] = useState<DOMRect | null>(null);
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+
+  const selectedOption = multiple ? undefined : options.find((opt) => opt.value === value);
+
+  const updateTriggerRect = useCallback((): void => {
+    if (dropdownRef.current) {
+      setTriggerRect(dropdownRef.current.getBoundingClientRect());
+    }
+  }, []);
+
+  useEffect(() => {
+    onOpenChange?.(isOpen);
+    if (!isOpen) {
+      setSearchTerm('');
+      return;
+    }
+
+    const handleScrollOrResize = (): void => {
+      updateTriggerRect();
+    };
+
+    if (usePortal) {
+      updateTriggerRect();
+      window.addEventListener('scroll', handleScrollOrResize, { capture: true, passive: true });
+      window.addEventListener('resize', handleScrollOrResize, { passive: true });
+    }
+
+    const isMobileOrTouch =
+      typeof window !== 'undefined' &&
+      (window.innerWidth < 768 ||
+        window.matchMedia('(pointer: coarse)').matches ||
+        'ontouchstart' in window);
+
+    if ((searchable || enableCustomValue) && searchInputRef.current && !isMobileOrTouch) {
+      // preventScroll: true is defense-in-depth, not the real fix (that's
+      // the click-time measurement above) - keeps a dropdown opened near
+      // the bottom of a long page from ever over-scrolling past what's
+      // actually needed to reveal it.
+      searchInputRef.current.focus({ preventScroll: true });
+    }
+    const handlePointerDown = (event: MouseEvent | TouchEvent) => {
+      const isInsideTrigger = dropdownRef.current?.contains(event.target as Node);
+      const isInsidePanel = panelRef.current?.contains(event.target as Node);
+      if (!isInsideTrigger && !isInsidePanel) {
+        setIsOpen(false);
+      }
+    };
+    const timeoutId = setTimeout(() => {
+      document.addEventListener('mousedown', handlePointerDown);
+      document.addEventListener('touchstart', handlePointerDown);
+    }, 10);
+    return () => {
+      clearTimeout(timeoutId);
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('touchstart', handlePointerDown);
+      if (usePortal) {
+        window.removeEventListener('scroll', handleScrollOrResize, { capture: true });
+        window.removeEventListener('resize', handleScrollOrResize);
+      }
+    };
+  }, [isOpen, searchable, enableCustomValue, usePortal, updateTriggerRect, onOpenChange]);
+
+  const filteredOptions = React.useMemo(() => {
+    if (!searchTerm.trim()) return options;
+    const term = searchTerm.toLowerCase().trim();
+    return options.filter(
+      (opt) =>
+        opt.label.toLowerCase().includes(term) ||
+        opt.value.toLowerCase().includes(term) ||
+        (opt.sublabel && opt.sublabel.toLowerCase().includes(term))
+    );
+  }, [options, searchTerm]);
+
+  const exactMatchExists = options.some(
+    (opt) =>
+      opt.label.toLowerCase().trim() === searchTerm.toLowerCase().trim() ||
+      opt.value.toLowerCase().trim() === searchTerm.toLowerCase().trim()
+  );
+
+  const handleApplyCustom = (customVal: string) => {
+    if (!customVal.trim()) return;
+    onChange?.(customVal.trim());
+    setIsOpen(false);
+  };
+
+  const toggleMultiValue = (optionValue: string): void => {
+    const next = values.includes(optionValue)
+      ? values.filter((v) => v !== optionValue)
+      : [...values, optionValue];
+    onChangeMultiple?.(next);
+  };
+
+  const heightClass = size === 'sm' ? 'h-11 sm:h-9 px-3.5 sm:px-2.5 text-sm sm:text-xs' : 'h-11 sm:h-10 px-3.5 sm:px-3 text-sm sm:text-xs';
+
+  const getDisplayLabel = () => {
+    if (multiple) {
+      if (values.length === 0) return placeholder;
+      if (values.length === 1) {
+        const match = options.find((opt) => opt.value === values[0]);
+        return match ? match.label : values[0];
+      }
+      return `${values.length} selected`;
+    }
+    if (selectedOption) return selectedOption.label;
+    if (value !== undefined && value !== null && String(value).trim() !== '') {
+      if (formatDisplayValue) return formatDisplayValue(String(value));
+      return String(value);
+    }
+    return placeholder;
+  };
+
+  const isSearchActive = searchable || enableCustomValue;
+
+  const dropdownPanel = (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          ref={panelRef}
+          initial={{ opacity: 0, scale: 0.96, y: 4 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.96, y: 4 }}
+          transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
+          style={
+            usePortal && triggerRect
+              ? {
+                  position: 'fixed',
+                  top: `${triggerRect.bottom + 6}px`,
+                  left: dropdownAnchor === 'right' ? undefined : `${triggerRect.left}px`,
+                  right:
+                    dropdownAnchor === 'right'
+                      ? `${window.innerWidth - triggerRect.right}px`
+                      : undefined,
+                  minWidth: Math.max(200, triggerRect.width),
+                  zIndex: 9999,
+                }
+              : undefined
+          }
+          className={`${
+            usePortal
+              ? ''
+              : `absolute ${dropdownAnchor === 'right' ? 'right-0' : 'left-0 right-0'} top-full mt-1.5`
+          } min-w-[200px] z-50 bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-zinc-800 rounded-xl shadow-xl p-1 sm:p-1 text-xs flex flex-col max-h-80 sm:max-h-72 overflow-hidden ${dropdownClassName || ''}`}
+        >
+            {isSearchActive && (
+              <div className="shrink-0 p-2 sm:p-1.5 border-b border-slate-100 dark:border-zinc-800/80 mb-1">
+                <div className="relative flex items-center">
+                  <Search className="w-4 h-4 sm:w-3.5 sm:h-3.5 absolute left-3 sm:left-2.5 text-slate-400 dark:text-zinc-500 pointer-events-none" />
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    name="custom-select-search"
+                    aria-label={searchPlaceholder}
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder={searchPlaceholder}
+                    className="w-full bg-slate-50 dark:bg-zinc-900 border border-slate-200/80 dark:border-zinc-800 rounded-lg pl-9 sm:pl-8 pr-3 sm:pr-2.5 py-2.5 sm:py-1.5 text-sm sm:text-xs text-slate-900 dark:text-zinc-100 placeholder:text-slate-400 dark:placeholder:text-zinc-500 focus:outline-hidden focus:ring-1 focus:ring-[#0C2086] transition-all"
+                    onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (multiple) {
+                          if (filteredOptions.length >= 1) {
+                            toggleMultiValue(filteredOptions[0].value);
+                          }
+                        } else if (filteredOptions.length === 1 && exactMatchExists) {
+                          onChange?.(filteredOptions[0].value);
+                          setIsOpen(false);
+                        } else if (enableCustomValue && searchTerm.trim()) {
+                          handleApplyCustom(searchTerm);
+                        }
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="flex-1 min-h-0 overflow-y-auto space-y-1 sm:space-y-0.5 custom-select-options-scroll-area">
+            {multiple && !searchTerm.trim() && (
+              <button
+                type="button"
+                onClick={() => onChangeMultiple?.([])}
+                className={`w-full min-h-[48px] sm:min-h-0 flex items-center justify-between px-3.5 sm:px-3 py-3 sm:py-2 rounded-xl sm:rounded-lg transition-colors cursor-pointer text-left mb-1 ${
+                  values.length === 0
+                    ? 'bg-slate-100 dark:bg-zinc-800/90 text-slate-900 dark:text-white font-bold'
+                    : 'text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-900/60'
+                }`}
+              >
+                <span className="font-medium truncate text-sm sm:text-xs leading-snug">{placeholder}</span>
+                {values.length === 0 && (
+                  <Check className="w-4 h-4 text-[#0C2086] dark:text-blue-400 shrink-0" />
+                )}
+              </button>
+            )}
+
+            {enableCustomValue && searchTerm.trim() && !exactMatchExists && (
+              <button
+                type="button"
+                onClick={() => handleApplyCustom(searchTerm)}
+                className="w-full min-h-[44px] sm:min-h-0 flex items-center gap-2.5 sm:gap-2 px-3.5 sm:px-3 py-2.5 sm:py-2 rounded-xl sm:rounded-lg bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200/60 dark:border-blue-800/50 text-[#0C2086] dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/60 transition-colors cursor-pointer text-left font-medium mb-1 text-sm sm:text-xs"
+              >
+                <Sparkles className="w-4 h-4 sm:w-3.5 sm:h-3.5 shrink-0 text-[#0C2086] dark:text-blue-400" />
+                <span className="truncate">
+                  Use custom: <span className="font-bold underline italic">"{searchTerm.trim()}"</span>
+                </span>
+              </button>
+            )}
+
+            {filteredOptions.length === 0 && (!enableCustomValue || !searchTerm.trim()) ? (
+              <div className="py-4 sm:py-3 px-3 sm:px-2 text-center text-sm sm:text-xs text-slate-400 dark:text-zinc-500">
+                No results found
+              </div>
+            ) : (
+              filteredOptions.map((option) => {
+                const isSelected = multiple ? values.includes(option.value) : option.value === value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => {
+                      if (multiple) {
+                        toggleMultiValue(option.value);
+                        return;
+                      }
+                      onChange?.(option.value);
+                      setIsOpen(false);
+                    }}
+                    className={`w-full min-h-[48px] sm:min-h-0 flex items-center justify-between px-3.5 sm:px-3 py-3 sm:py-2 rounded-xl sm:rounded-lg transition-colors cursor-pointer text-left ${
+                      isSelected
+                        ? 'bg-slate-100 dark:bg-zinc-800/90 text-slate-900 dark:text-white font-bold'
+                        : 'text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-900/60'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 sm:gap-2 min-w-0 flex-1 pr-2">
+                      {option.icon}
+                      <div className="min-w-0 flex-1">
+                        <div className="font-medium truncate text-sm sm:text-xs leading-snug">{option.label}</div>
+                        {option.sublabel && (
+                          <div className="text-xs sm:text-[10px] text-slate-400 dark:text-zinc-500 font-mono mt-0.5">
+                            {option.sublabel}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    {isSelected && (
+                      <Check className="w-4 h-4 text-[#0C2086] dark:text-blue-400 shrink-0" />
+                    )}
+                  </button>
+                );
+              })
+            )}
+            </div>
+
+            {footerAction && (
+              <div className="shrink-0 pt-1.5 sm:pt-1 mt-1 border-t border-slate-100 dark:border-zinc-800/80">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsOpen(false);
+                    footerAction.onClick();
+                  }}
+                  className="w-full min-h-[44px] sm:min-h-0 flex items-center gap-2 px-3.5 sm:px-3 py-3 sm:py-1.5 rounded-xl sm:rounded-lg text-sm sm:text-xs font-semibold text-[#0C2086] dark:text-sky-400 hover:bg-blue-50 dark:hover:bg-sky-950/40 transition-colors cursor-pointer text-left"
+                >
+                  {footerAction.icon}
+                  <span className="truncate">{footerAction.label}</span>
+                </button>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+  );
+
+  return (
+    <div className={`relative self-start ${className}`} ref={dropdownRef}>
+      {label && (
+        <label className="text-xs font-medium text-slate-600 dark:text-zinc-400 mb-1 block">
+          {label}
+        </label>
+      )}
+
+      <button
+        type="button"
+        disabled={disabled}
+        onPointerDown={() => !disabled && ApplicationHapticsUtility.current.triggerHapticFeedback(12)}
+        onClick={() => {
+          if (disabled) return;
+          // Measured here (not left to the effect below) so this same
+          // click's render batch already carries the correct position -
+          // otherwise the panel's first frame renders unpositioned
+          // (flowing to wherever its portal target's normal document flow
+          // puts it) and autofocusing the search input inside it, in that
+          // gap, makes the browser auto-scroll the whole page to reveal it.
+          if (!isOpen && usePortal && dropdownRef.current) {
+            setTriggerRect(dropdownRef.current.getBoundingClientRect());
+          }
+          setIsOpen(!isOpen);
+        }}
+        className={`${className.includes('w-') ? 'w-full' : ''} ${heightClass} rounded-xl sm:rounded-lg bg-white dark:bg-[#0a0a0c] text-slate-900 dark:text-zinc-100 border border-slate-200/80 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700 transition-colors focus:outline-none flex items-center justify-between gap-2 select-none ${
+          disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+        } ${triggerClassName || ''}`}
+      >
+        <div className="flex items-center gap-2 truncate font-medium">
+          {selectedOption?.icon}
+          <span className="truncate font-semibold">
+            {getDisplayLabel()}
+          </span>
+        </div>
+        <ChevronDown
+          className={`w-4 h-4 sm:w-3.5 sm:h-3.5 text-slate-400 transition-transform duration-200 shrink-0 ${
+            isOpen ? 'rotate-180 text-slate-700 dark:text-zinc-200' : ''
+          } ${chevronClassName || ''}`}
+        />
+      </button>
+
+      {usePortal && typeof document !== 'undefined'
+        ? createPortal(dropdownPanel, document.body)
+        : dropdownPanel}
+    </div>
+  );
+}

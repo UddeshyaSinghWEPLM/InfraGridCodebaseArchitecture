@@ -1,0 +1,2763 @@
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ServerOff,
+  FilterX,
+  Plus,
+  Trash2,
+  Pencil,
+  Columns3,
+  ChevronDown,
+  Bold,
+  Italic,
+  Underline,
+  Ban,
+  ArrowUpToLine,
+  ArrowDownToLine,
+  Type as TypeIcon,
+  Hash,
+  Calendar,
+  List,
+} from 'lucide-react';
+import DataTableContainerSharedComponent from '../../Shared/Components/DataTableContainerSharedComponent';
+import TableHeaderCellSharedComponent from '../../Shared/Components/TableHeaderCellSharedComponent';
+import EmptyStateSharedComponent from '../../Shared/Components/EmptyStateSharedComponent';
+import ExpandableSearchSharedComponent from '../../Shared/Components/ExpandableSearchSharedComponent';
+import CopyableTableCellSharedComponent from '../../Shared/Components/CopyableTableCellSharedComponent';
+import ViewEditModeToggleSharedComponent from '../../Shared/Components/ViewEditModeToggleSharedComponent';
+import { useIsAdmin } from '../../Utilities/AdminIdentityUtility';
+import PrimaryActionButtonSharedComponent from '../../Shared/Components/PrimaryActionButtonSharedComponent';
+import CustomSelectSharedComponent from '../../Shared/Components/CustomSelectSharedComponent';
+import UptimeScheduleModalController from './Components/UptimeScheduleModalController';
+import ConfirmationModalSharedComponent from '../../Shared/Components/ConfirmationModalSharedComponent';
+import ColumnVisibilityDropdownSharedComponent from '../../Shared/Components/ColumnVisibilityDropdownSharedComponent';
+import ContextMenuSharedComponent, { type ContextMenuItem } from '../../Shared/Components/ContextMenuSharedComponent';
+import CreateOptionModalController from '../../Shared/Components/CreateOptionModalController';
+import AddCustomColorModalController from '../Resources/Components/AddCustomColorModalController';
+import TableSelectionService from '../../Services/TableSelectionService';
+import TanstackQueryClientService from '../../Services/TanstackQueryClientService';
+import { useGlobalSearchRowJump } from '../../Services/GlobalSearchNavigationService';
+import EnvironmentOverviewColumnWidthService from './Services/EnvironmentOverviewColumnWidthService';
+import EnvironmentOverviewRowHeightService from './Services/EnvironmentOverviewRowHeightService';
+import EnvironmentOverviewCON, {
+  type EnvironmentOverviewColumnDef,
+  type MergedEnvironmentOverviewColumnDef,
+} from './Constants/EnvironmentOverviewCON';
+import EnvironmentOverviewTableUtility from './Utilities/EnvironmentOverviewTableUtility';
+import CellFormatCON from '../../Constants/CellFormatCON';
+import CellFormatHelper from '../../Utilities/CellFormatHelper';
+import ViewEditModeCON from '../../Constants/ViewEditModeCON';
+import ApplicationUserPreferenceKeyCON from '../../Constants/ApplicationUserPreferenceKeyCON';
+import ApplicationUserPreferenceUtility from '../../Utilities/ApplicationUserPreferenceUtility';
+import TableColumnVisibilityUtility from '../../Utilities/TableColumnVisibilityUtility';
+import AnonymousClientIdentityUtility from '../../Utilities/AnonymousClientIdentityUtility';
+import ActionItemsLineParserUtility from '../../Utilities/ActionItemsLineParserUtility';
+import UptimeScheduleTextUtility from './Utilities/UptimeScheduleTextUtility';
+import type EnvironmentOverviewInterfaceModel from '../../Models/EnvironmentOverviewInterfaceModel';
+import type EnvironmentOverviewCellFormatInterfaceModel from '../../Models/EnvironmentOverviewCellFormatInterfaceModel';
+import type EnvironmentOverviewCellFormatTargetInterfaceModel from '../../Models/EnvironmentOverviewCellFormatTargetInterfaceModel';
+import type EnvironmentOverviewCustomColumnInterfaceModel from '../../Models/EnvironmentOverviewCustomColumnInterfaceModel';
+import CustomColumnTypeEnumModel, { type CustomColumnTypeEnumModel as CustomColumnTypeEnumModelType } from '../../Models/CustomColumnTypeEnumModel';
+
+// One entry per growable-dropdown fieldName this screen's shared
+// CreateOptionModalController can be opened for - keeps that one JSX usage
+// a simple lookup instead of a growing nested ternary chain as more fields
+// (Current Uptime Schedule's two option lists, now) get their own "Add New".
+const CREATE_OPTION_MODAL_COPY_BY_FIELD_NAME: Record<
+  string,
+  { title: string; subtitle: string; inputLabel: string; inputPlaceholder: string }
+> = {
+  Status: {
+    title: 'Create Status',
+    subtitle: 'Adds a new option to the Status dropdown for every environment.',
+    inputLabel: 'Status Name',
+    inputPlaceholder: 'e.g. Maintenance',
+  },
+  Sponsor: {
+    title: 'Create Sponsor',
+    subtitle: 'Adds a new option to the Sponsor dropdown for every environment.',
+    inputLabel: 'Sponsor Name',
+    inputPlaceholder: 'e.g. Jane Doe',
+  },
+  UptimeScheduleType: {
+    title: 'Create Uptime Schedule Type',
+    subtitle: 'Adds a new special mode to the Current Uptime Schedule dropdown for every environment.',
+    inputLabel: 'Type Name',
+    inputPlaceholder: 'e.g. Maintenance Mode',
+  },
+  OnDemandStatus: {
+    title: 'Create On Demand Status',
+    subtitle: 'Adds a new status option for "On Demand" environments.',
+    inputLabel: 'Status Name',
+    inputPlaceholder: 'e.g. Currently Running',
+  },
+};
+
+export default function EnvironmentOverviewScreenController(): React.JSX.Element {
+  const isAdmin = useIsAdmin();
+  const { data: environments = [], isLoading } =
+    TanstackQueryClientService.current.environmentOverview.useEnvironmentOverviewsQuery();
+
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  // Row/column id the most recently created row/column should scroll into
+  // view and receive focus for - set right after InsertRow/CreateCustomColumn
+  // succeeds, cleared once the corresponding effect below has acted on it.
+  const [pendingFocusRowId, setPendingFocusRowId] = useState<string | null>(null);
+  const [pendingFocusColumnId, setPendingFocusColumnId] = useState<string | null>(null);
+
+  // Which rows' Action Items / Updates column is showing every entry rather
+  // than just the first few dated ones - per-row since each row's history is
+  // independent. Resets on reload (not persisted) - matches Edit Mode's own
+  // "resets on reload" convention for this screen's other transient UI state.
+  const [expandedActionItemsRowIds, setExpandedActionItemsRowIds] = useState<Set<string>>(new Set());
+  const actionItemsScrollRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  // Which row has an active "Add Entry" draft open - only one at a time
+  // across the whole table (clicking "+ Add Entry" elsewhere closes any
+  // other open draft), matching how only one modal/dropdown is normally
+  // open at once elsewhere in this app. Edit-Mode-gated: "Add Entry" itself
+  // only renders while Edit Mode is active, matching Status editing's own
+  // precedent on this screen.
+  const [actionItemDraftRowId, setActionItemDraftRowId] = useState<string | null>(null);
+  const [actionItemDraftText, setActionItemDraftText] = useState<string>('');
+  const [actionItemDraftError, setActionItemDraftError] = useState<string | null>(null);
+  const actionItemDraftInputRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // The one Action Items entry currently pending delete confirmation, if
+  // any - lineIndex doubles as both "position in the currently-displayed
+  // list" and "position in the full stored list", since every visible line
+  // is always a genuine prefix of the full list (see
+  // getVisibleActionItemsLines). lineText is kept only for the confirmation
+  // modal's own preview text, not sent to the server.
+  const [deletingActionItem, setDeletingActionItem] = useState<{
+    rowId: string;
+    lineIndex: number;
+    lineText: string;
+  } | null>(null);
+
+  // The one Action Items entry currently being edited, if any - mirrors
+  // actionItemDraftRowId's own single-at-a-time convention (opening this
+  // closes any other open draft/edit, matching how only one modal/dropdown
+  // is normally open at once elsewhere in this app). originalLine is kept so
+  // the save step can rebuild the line's untouched date/tag prefix around
+  // the edited note - see ActionItemsLineParserUtility.buildReplacementLine.
+  const [editingActionItem, setEditingActionItem] = useState<{
+    rowId: string;
+    lineIndex: number;
+    originalLine: string;
+  } | null>(null);
+  const [editingActionItemText, setEditingActionItemText] = useState<string>('');
+  const [editingActionItemError, setEditingActionItemError] = useState<string | null>(null);
+  const editingActionItemInputRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // The one row currently pending whole-environment delete confirmation, if
+  // any - environmentName is kept only for the confirmation modal's own
+  // preview text, not sent to the server. Deletion is a soft delete
+  // (EnvironmentOverviewNexus.IsDeleted) but behaves identically to a hard
+  // delete from this screen's perspective - the row simply stops coming
+  // back from the list query.
+  const [deletingEnvironment, setDeletingEnvironment] = useState<{
+    id: string;
+    environmentName: string;
+  } | null>(null);
+
+  // Lifted (not self-contained) specifically on this screen, unlike Resources
+  // - the Status column needs to know whether Edit Mode is active to decide
+  // between its read-only copyable cell and its editable dropdown.
+  const [editMode, setEditMode] = useState<string>(ViewEditModeCON.VIEW);
+  const isEditMode = editMode === ViewEditModeCON.EDIT;
+
+  // Which row's Status dropdown is mid-update (disables that one dropdown
+  // and shows a pending indicator) and which row most recently failed (shows
+  // an inline error under that row's cell, auto-clearing after a few
+  // seconds) - keyed by row id since in principle more than one row could be
+  // mid-edit, even though only one dropdown is normally open at a time.
+  const [pendingStatusRowId, setPendingStatusRowId] = useState<string | null>(null);
+  const [statusErrorByRowId, setStatusErrorByRowId] = useState<{ rowId: string; message: string } | null>(null);
+  const statusErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Which row + field (Status or Sponsor) opened the "Add New Option" modal
+  // - null when the modal isn't open. Lets onCreated below know which row to
+  // immediately select+save the new option onto, combining SignForge's own
+  // "auto-select the newly created option" pattern with this screen's
+  // "selecting a dropdown value saves immediately" behavior. Shared across
+  // every growable-dropdown field rather than one target/open pair per
+  // field, since only one of these modals is ever open at a time.
+  const [optionModalTarget, setOptionModalTarget] = useState<{ fieldName: string; rowId: string } | null>(null);
+  const [isOptionModalOpen, setIsOptionModalOpen] = useState<boolean>(false);
+
+  // Which cells (keyed "<rowId>:<columnKey>") are mid-save after a blur, and
+  // the most recent field-save failure, if any - unlike Status (one
+  // dropdown open at a time), several Purpose/Priority/DNS URL cells across
+  // different rows could plausibly be mid-save at once, so pending state is
+  // a Set rather than a single row id.
+  const [pendingFieldEditKeys, setPendingFieldEditKeys] = useState<Set<string>>(new Set());
+  const [fieldEditErrorByKey, setFieldEditErrorByKey] = useState<{ key: string; message: string } | null>(null);
+  const fieldEditErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Which cell was double-clicked in View Mode to enter Edit Mode, if any -
+  // ensures the target textarea receives focus (with cursor at end) or the
+  // target dropdown (Sponsor or Status) mounts open.
+  const [activeDoubleClickedCell, setActiveDoubleClickedCell] = useState<{ rowId: string; columnKey: string } | null>(null);
+  const [isEditModeFromDoubleClick, setIsEditModeFromDoubleClick] = useState<boolean>(false);
+  const tableWrapperRef = useRef<HTMLDivElement | null>(null);
+  const editableTextareaRefs = useRef<Map<string, HTMLTextAreaElement>>(new Map());
+
+  // Which row's Current Uptime Schedule modal is open, if any - declared up
+  // here (not alongside its own draft-selection state further down) purely
+  // so the outside-click-revert effect below can depend on it without a
+  // temporal-dead-zone error (that effect's dependency array is evaluated
+  // during this same render pass, unlike the effect body itself).
+  const [editingUptimeScheduleRowId, setEditingUptimeScheduleRowId] = useState<string | null>(null);
+
+  const handleCellDoubleClick = (rowId: string, columnKey: string): void => {
+    setActiveDoubleClickedCell({ rowId, columnKey });
+    setIsEditModeFromDoubleClick(true);
+    setEditMode(ViewEditModeCON.EDIT);
+  };
+
+  const handleModeChange = (newMode: string): void => {
+    setIsEditModeFromDoubleClick(false);
+    setEditMode(newMode);
+  };
+
+  useEffect(() => {
+    if (activeDoubleClickedCell && isEditMode) {
+      const key = `${activeDoubleClickedCell.rowId}:${activeDoubleClickedCell.columnKey}`;
+      const textarea = editableTextareaRefs.current.get(key);
+      if (textarea) {
+        textarea.focus();
+        textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+      }
+      setActiveDoubleClickedCell(null);
+    }
+  }, [activeDoubleClickedCell, isEditMode]);
+
+  useEffect(() => {
+    if (!isEditMode || !isEditModeFromDoubleClick) return;
+
+    const handlePointerDown = (event: MouseEvent | TouchEvent): void => {
+      // If a modal or delete confirmation dialog is open, don't revert
+      if (
+        isOptionModalOpen ||
+        deletingEnvironment !== null ||
+        editingUptimeScheduleRowId !== null
+      ) {
+        return;
+      }
+
+      const target = event.target as Node | null;
+      if (!target) return;
+
+      // Inside table card/wrapper
+      if (tableWrapperRef.current?.contains(target)) return;
+
+      // Inside any modals, dialogs, dropdown panels, or context menus
+      if ((target as Element)?.closest?.('[role="dialog"], [role="menu"], [aria-modal="true"], [data-portal]')) {
+        return;
+      }
+
+      // Revert to View Mode
+      setIsEditModeFromDoubleClick(false);
+      setEditMode(ViewEditModeCON.VIEW);
+    };
+
+    const timer = setTimeout(() => {
+      document.addEventListener('mousedown', handlePointerDown);
+      document.addEventListener('touchstart', handlePointerDown);
+    }, 50);
+
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('touchstart', handlePointerDown);
+    };
+  }, [
+    isEditMode,
+    isEditModeFromDoubleClick,
+    isOptionModalOpen,
+    deletingEnvironment,
+    editingUptimeScheduleRowId,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      if (statusErrorTimerRef.current !== null) clearTimeout(statusErrorTimerRef.current);
+      if (fieldEditErrorTimerRef.current !== null) clearTimeout(fieldEditErrorTimerRef.current);
+    };
+  }, []);
+
+  const { data: statusOptions = [] } =
+    TanstackQueryClientService.current.configurationConstants.useOptionsQuery('Status');
+  const statusSelectOptions = useMemo(
+    () => statusOptions.map((option) => ({ value: option, label: option })),
+    [statusOptions]
+  );
+
+  const { data: sponsorOptions = [] } =
+    TanstackQueryClientService.current.configurationConstants.useOptionsQuery('Sponsor');
+  const sponsorSelectOptions = useMemo(
+    () => sponsorOptions.map((option) => ({ value: option, label: option })),
+    [sponsorOptions]
+  );
+
+  const { data: uptimeScheduleTypeOptions = [] } =
+    TanstackQueryClientService.current.configurationConstants.useOptionsQuery('UptimeScheduleType');
+  const { data: onDemandStatusOptions = [] } =
+    TanstackQueryClientService.current.configurationConstants.useOptionsQuery('OnDemandStatus');
+
+  // Single-open-at-a-time like every other per-row editor on this screen
+  // (editingUptimeScheduleRowId itself is declared further up, see its own
+  // comment there). Draft state lives here (not in UptimeScheduleModalController
+  // itself) so a freshly-created "Add New Type"/"Add New Status" option -
+  // created via the SAME shared CreateOptionModalController every other
+  // growable dropdown on this screen already uses - can flow straight into
+  // whichever row opened it (see handleOptionCreated below).
+  const [uptimeScheduleDraftDays, setUptimeScheduleDraftDays] = useState<Set<string>>(new Set());
+  const [uptimeScheduleDraftSpecialMode, setUptimeScheduleDraftSpecialMode] = useState<string | null>(null);
+  const [uptimeScheduleDraftOnDemandStatus, setUptimeScheduleDraftOnDemandStatus] = useState<string | null>(null);
+  const [uptimeScheduleDraftStartTime, setUptimeScheduleDraftStartTime] = useState<string>('');
+  const [uptimeScheduleDraftEndTime, setUptimeScheduleDraftEndTime] = useState<string>('');
+  // The modal's own optional Notes field - seeded from the RAW
+  // uptimeScheduleNote (never the display-only uptimeScheduleNoteSummary),
+  // so re-opening the editor always shows the user's own original text
+  // verbatim, even if it was long enough to get AI-condensed for the cell.
+  const [uptimeScheduleDraftNote, setUptimeScheduleDraftNote] = useState<string>('');
+
+  const handleOpenUptimeScheduleEditor = (rowId: string, currentValue: string | null, currentNote: string | null): void => {
+    const parsed = UptimeScheduleTextUtility.current.parse(currentValue, uptimeScheduleTypeOptions);
+    setEditingUptimeScheduleRowId(rowId);
+    setUptimeScheduleDraftDays(new Set(parsed.days));
+    setUptimeScheduleDraftSpecialMode(parsed.specialMode);
+    setUptimeScheduleDraftOnDemandStatus(parsed.onDemandStatus);
+    setUptimeScheduleDraftStartTime(parsed.startTime);
+    setUptimeScheduleDraftEndTime(parsed.endTime);
+    setUptimeScheduleDraftNote(currentNote ?? '');
+  };
+
+  const handleCloseUptimeScheduleEditor = (): void => {
+    setEditingUptimeScheduleRowId(null);
+  };
+
+  // Double-click-to-edit for this column specifically - there's no single
+  // ref to just .focus() the way the generic textarea effect above does, so
+  // this opens the (parsed, draft-seeded) editor directly instead. Mirrors
+  // that effect's own activeDoubleClickedCell-clearing, harmless to run
+  // alongside it since each effect only acts on the columnKey it recognizes.
+  useEffect(() => {
+    if (activeDoubleClickedCell?.columnKey !== 'currentUptimeSchedule') return;
+    const environment = environments.find((candidate) => candidate.id === activeDoubleClickedCell.rowId);
+    if (environment && environment.status !== 'Decommissioned') {
+      handleOpenUptimeScheduleEditor(activeDoubleClickedCell.rowId, environment.currentUptimeSchedule, environment.uptimeScheduleNote);
+    }
+    setActiveDoubleClickedCell(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeDoubleClickedCell]);
+
+  // Mutually exclusive, both directions - a weekday schedule and a special
+  // mode ("24 x 7 Uptime", "On Demand", "N/A") describe fundamentally
+  // different things, never both at once.
+  const handleToggleUptimeScheduleDay = (day: string): void => {
+    setUptimeScheduleDraftSpecialMode(null);
+    setUptimeScheduleDraftOnDemandStatus(null);
+    setUptimeScheduleDraftDays((previous) => {
+      const next = new Set(previous);
+      if (next.has(day)) {
+        next.delete(day);
+      } else {
+        next.add(day);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectUptimeScheduleSpecialMode = (mode: string): void => {
+    setUptimeScheduleDraftDays(new Set());
+    setUptimeScheduleDraftStartTime('');
+    setUptimeScheduleDraftEndTime('');
+    if (mode !== 'On Demand') setUptimeScheduleDraftOnDemandStatus(null);
+    setUptimeScheduleDraftSpecialMode(mode);
+  };
+
+  const uptimeSchedulePreviewValue = UptimeScheduleTextUtility.current.buildValue(
+    uptimeScheduleDraftSpecialMode,
+    uptimeScheduleDraftOnDemandStatus,
+    Array.from(uptimeScheduleDraftDays),
+    uptimeScheduleDraftStartTime,
+    uptimeScheduleDraftEndTime
+  );
+
+  const canSaveUptimeSchedule =
+    uptimeScheduleDraftSpecialMode === 'On Demand'
+      ? Boolean(uptimeScheduleDraftOnDemandStatus)
+      : uptimeScheduleDraftSpecialMode !== null
+        ? true
+        : uptimeScheduleDraftDays.size > 0 && Boolean(uptimeScheduleDraftStartTime) && Boolean(uptimeScheduleDraftEndTime);
+
+  // Goes through its own dedicated mutation, not handleFieldSave/
+  // updateFieldMutation - this needs to persist the raw note alongside the
+  // composed schedule string in one request (and may trigger server-side AI
+  // summarization for a long note), neither of which the generic Field
+  // endpoint supports. Same pendingFieldEditKeys/fieldEditErrorByKey
+  // pending/error UX convention as every other field on this screen,
+  // keyed identically ("${rowId}:currentUptimeSchedule") so the cell's own
+  // isPending/cellError reads below pick this up for free.
+  const handleSaveUptimeSchedule = (): void => {
+    if (!editingUptimeScheduleRowId || !canSaveUptimeSchedule) return;
+
+    const rowId = editingUptimeScheduleRowId;
+    const cellKey = `${rowId}:currentUptimeSchedule`;
+    setPendingFieldEditKeys((previous) => new Set(previous).add(cellKey));
+    setFieldEditErrorByKey((current) => (current?.key === cellKey ? null : current));
+
+    updateUptimeScheduleMutation.mutate(
+      {
+        id: rowId,
+        request: {
+          currentUptimeSchedule: uptimeSchedulePreviewValue || null,
+          uptimeScheduleNote: uptimeScheduleDraftNote.trim() || null,
+        },
+      },
+      {
+        onSuccess: () => {
+          setPendingFieldEditKeys((previous) => {
+            const next = new Set(previous);
+            next.delete(cellKey);
+            return next;
+          });
+        },
+        onError: (error) => {
+          setPendingFieldEditKeys((previous) => {
+            const next = new Set(previous);
+            next.delete(cellKey);
+            return next;
+          });
+          if (fieldEditErrorTimerRef.current !== null) clearTimeout(fieldEditErrorTimerRef.current);
+          setFieldEditErrorByKey({
+            key: cellKey,
+            message: error instanceof Error ? error.message : 'Failed to update the uptime schedule.',
+          });
+          fieldEditErrorTimerRef.current = setTimeout(() => {
+            setFieldEditErrorByKey((current) => (current?.key === cellKey ? null : current));
+          }, 4000);
+        },
+      }
+    );
+
+    setEditingUptimeScheduleRowId(null);
+  };
+
+  // Columns dropdown - same mechanism as Resources' own (see
+  // TableColumnVisibilityUtility/ColumnVisibilityDropdownSharedComponent),
+  // just scoped to this table's own column list and its own persisted
+  // preference key. Only "environment" is locked: it's the one field
+  // required to save a new row (see handleSaveDraft below).
+  const columnButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [isColumnDropdownOpen, setIsColumnDropdownOpen] = useState<boolean>(false);
+
+  const handleCloseColumnDropdown = (): void => {
+    setIsColumnDropdownOpen(false);
+    columnButtonRef.current?.focus();
+  };
+
+  const [visibleColumnKeys, setVisibleColumnKeys] = useState<Set<string>>(() => {
+    const saved = ApplicationUserPreferenceUtility.current.getJSONPreference<string[]>(
+      ApplicationUserPreferenceKeyCON.ENVIRONMENT_OVERVIEW_TABLE_VISIBLE_COLUMNS,
+      EnvironmentOverviewCON.ALL_COLUMN_KEYS
+    );
+    return TableColumnVisibilityUtility.current.withLockedColumnsIncluded(saved, EnvironmentOverviewCON.LOCKED_COLUMN_KEYS);
+  });
+
+  const { data: customColumns = [] } = TanstackQueryClientService.current.environmentOverview.useCustomColumnsQuery();
+
+  // A saved visibility preference predates any custom column created after
+  // it was last written, so a brand-new column would otherwise come back
+  // hidden by default - this keeps every custom column visible unless the
+  // user has explicitly hidden it themselves.
+  useEffect(() => {
+    const unknownCustomKeys = customColumns.map((column) => column.id).filter((id) => !visibleColumnKeys.has(id));
+    if (unknownCustomKeys.length === 0) return;
+    setVisibleColumnKeys((previous) => new Set([...previous, ...unknownCustomKeys]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customColumns]);
+
+  const handleToggleColumn = (key: string): void => {
+    if (EnvironmentOverviewCON.LOCKED_COLUMN_KEYS.has(key)) return;
+
+    setVisibleColumnKeys((previous) => {
+      const next = new Set(previous);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      ApplicationUserPreferenceUtility.current.setJSONPreference(
+        ApplicationUserPreferenceKeyCON.ENVIRONMENT_OVERVIEW_TABLE_VISIBLE_COLUMNS,
+        Array.from(next)
+      );
+      return next;
+    });
+  };
+
+  // Deliberately in-memory only, same as Resources' own - a reload brings
+  // back whatever was last actually saved, not this cleared state.
+  const handleClearAllColumns = (): void => {
+    setVisibleColumnKeys(new Set(EnvironmentOverviewCON.LOCKED_COLUMN_KEYS));
+  };
+
+  // The table's one true column order - fixed columns (positioned by their
+  // hand-kept-in-sync FIXED_COLUMN_ANCHORS constants) merged with every live
+  // custom column (positioned by its own stored, fractional Position),
+  // sorted together into a single list. See MergedEnvironmentOverviewColumnDef.
+  const mergedColumns: MergedEnvironmentOverviewColumnDef[] = useMemo(() => {
+    const fixed: MergedEnvironmentOverviewColumnDef[] = EnvironmentOverviewCON.COLUMNS.map((column) => ({
+      key: column.key,
+      label: column.label,
+      locked: column.locked,
+      isCustom: false,
+      position: EnvironmentOverviewCON.FIXED_COLUMN_ANCHORS[column.key],
+    }));
+    const custom: MergedEnvironmentOverviewColumnDef[] = customColumns.map((customColumn) => ({
+      key: customColumn.id,
+      label: customColumn.headerName,
+      isCustom: true,
+      customColumn,
+      position: customColumn.position,
+    }));
+    return [...fixed, ...custom].sort((a, b) => a.position - b.position);
+  }, [customColumns]);
+
+  const visibleColumns = mergedColumns.filter((column) => visibleColumnKeys.has(column.key));
+
+  const filteredEnvironments = useMemo(() => {
+    const lowerCaseQuery = searchQuery.trim().toLowerCase();
+    if (!lowerCaseQuery) return environments;
+
+    return environments.filter((environment) =>
+      EnvironmentOverviewTableUtility.current.matchesSearchQuery(environment, visibleColumns, lowerCaseQuery)
+    );
+  }, [environments, searchQuery, visibleColumns]);
+
+  // Jumped here from the global search modal (Ctrl/Cmd+K) - see
+  // ResourcesScreenController's own identical use of this hook for the full
+  // rationale.
+  const { highlightedId: highlightedEnvironmentId } = useGlobalSearchRowJump(
+    'environmentOverview',
+    filteredEnvironments,
+    (environment) => environment.id,
+    () => setSearchQuery('')
+  );
+
+  // Excel-like multi-cell/row/column selection, shared with Resources and
+  // Configure Subscriptions - see TableSelectionService.ts for the full
+  // design. Column indexes follow visibleColumns' own order, same as
+  // Resources - hiding a column removes it from this grid entirely, same as
+  // hiding one on Resources. The draft row below is deliberately NOT part of
+  // this - it has real inputs instead of copyable cells, so it isn't
+  // selectable/copyable.
+  const tableSelection = TableSelectionService.current.useTableSelection({
+    rowCount: filteredEnvironments.length,
+    columnCount: visibleColumns.length,
+    getCellValue: (rowIndex, colIndex) => {
+      const environment = filteredEnvironments[rowIndex];
+      const column = visibleColumns[colIndex];
+      if (!environment || !column) return '';
+      if (column.isCustom) return environment.customCellValues[column.key] ?? '';
+      return environment[column.key as keyof EnvironmentOverviewInterfaceModel]?.toString() ?? '';
+    },
+  });
+
+  // Excel-style draggable column borders, persisted to localStorage - see
+  // EnvironmentOverviewColumnWidthService.ts. Scoped to this one table for
+  // now, not a cross-table service like TableSelectionService.
+  const columnWidths = EnvironmentOverviewColumnWidthService.current.useColumnWidths(
+    EnvironmentOverviewCON.DEFAULT_COLUMN_WIDTHS
+  );
+
+  // Excel-style draggable row heights, persisted to localStorage - see
+  // EnvironmentOverviewRowHeightService.ts.
+  const rowHeights = EnvironmentOverviewRowHeightService.current.useRowHeights();
+
+  const { data: cellFormats = [] } =
+    TanstackQueryClientService.current.environmentOverview.useEnvironmentOverviewCellFormatsQuery();
+  const { data: customColors = [] } =
+    TanstackQueryClientService.current.resources.useCustomColorsQuery();
+  const updateCellFormatMutation =
+    TanstackQueryClientService.current.environmentOverview.useUpdateEnvironmentOverviewCellFormatMutation();
+
+  const cellFormatByKey = useMemo(() => {
+    const map = new Map<string, EnvironmentOverviewCellFormatInterfaceModel>();
+    cellFormats.forEach((format) => {
+      map.set(`${format.environmentOverviewId}:${format.columnKey}`, format);
+    });
+    return map;
+  }, [cellFormats]);
+
+  const createCustomColumnMutation = TanstackQueryClientService.current.environmentOverview.useCreateCustomColumnMutation({
+    onSuccess: (data) => setPendingFocusColumnId(data.id),
+  });
+  const updateCustomColumnHeaderMutation =
+    TanstackQueryClientService.current.environmentOverview.useUpdateCustomColumnHeaderMutation();
+  const addCustomColumnOptionMutation =
+    TanstackQueryClientService.current.environmentOverview.useAddCustomColumnOptionMutation();
+  const updateCustomCellValueMutation =
+    TanstackQueryClientService.current.environmentOverview.useUpdateCustomCellValueMutation();
+
+  // The one custom column currently pending delete confirmation, if any -
+  // same "confirm via the standard modal" convention as deleting a whole
+  // row.
+  const [deletingCustomColumn, setDeletingCustomColumn] = useState<EnvironmentOverviewCustomColumnInterfaceModel | null>(
+    null
+  );
+  const deleteCustomColumnMutation = TanstackQueryClientService.current.environmentOverview.useDeleteCustomColumnMutation({
+    onSuccess: () => setDeletingCustomColumn(null),
+  });
+
+  // Which custom column's header is currently in inline rename mode, if any
+  // - entered either via the header context menu's "Rename Column Header" or
+  // a double-click directly on the header text (both routes land here).
+  const [renamingColumnId, setRenamingColumnId] = useState<string | null>(null);
+  const renameColumnInputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
+
+  const handleStartRenameCustomColumn = (customColumn: EnvironmentOverviewCustomColumnInterfaceModel): void => {
+    setRenamingColumnId(customColumn.id);
+  };
+
+  const handleCommitRenameCustomColumn = (customColumn: EnvironmentOverviewCustomColumnInterfaceModel, value: string): void => {
+    setRenamingColumnId(null);
+    const trimmed = value.trim();
+    if (trimmed === customColumn.headerName) return;
+    updateCustomColumnHeaderMutation.mutate({ id: customColumn.id, request: { headerName: trimmed } });
+  };
+
+  // The second, separate right-click menu - fired only from a custom
+  // column's own header, never a fixed one (see handleCustomColumnHeaderContextMenu).
+  const [customColumnHeaderMenu, setCustomColumnHeaderMenu] = useState<{
+    isOpen: boolean;
+    x: number;
+    y: number;
+    customColumn: EnvironmentOverviewCustomColumnInterfaceModel | null;
+  }>({ isOpen: false, x: 0, y: 0, customColumn: null });
+
+  const handleCustomColumnHeaderContextMenu = (
+    event: React.MouseEvent,
+    customColumn: EnvironmentOverviewCustomColumnInterfaceModel
+  ): void => {
+    if (!isEditMode) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setCustomColumnHeaderMenu({ isOpen: true, x: event.clientX, y: event.clientY, customColumn });
+  };
+
+  const handleCloseCustomColumnHeaderMenu = (): void => {
+    setCustomColumnHeaderMenu((previous) => ({ ...previous, isOpen: false }));
+  };
+
+  // Scrolls the newly-created column into view and enters rename mode -
+  // split into two effects (not one) since the rename <input> doesn't exist
+  // in the DOM until the renamingColumnId state update below actually
+  // commits a re-render; focusing it has to wait for that render, not fire
+  // in the same tick as the state update that creates it.
+  useEffect(() => {
+    if (!pendingFocusColumnId) return;
+    setRenamingColumnId(pendingFocusColumnId);
+    const headerCell = tableWrapperRef.current?.querySelector(`[data-column-key="${pendingFocusColumnId}"]`);
+    headerCell?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+    setPendingFocusColumnId(null);
+  }, [pendingFocusColumnId]);
+
+  useEffect(() => {
+    if (!renamingColumnId) return;
+    const input = renameColumnInputRefs.current.get(renamingColumnId);
+    if (input) {
+      input.focus({ preventScroll: true });
+      input.select();
+    }
+  }, [renamingColumnId]);
+
+  const [contextMenu, setContextMenu] = useState<{ isOpen: boolean; x: number; y: number }>({
+    isOpen: false,
+    x: 0,
+    y: 0,
+  });
+  const [isAddColorModalOpen, setIsAddColorModalOpen] = useState<boolean>(false);
+
+  const getSelectedCellTargets = (): EnvironmentOverviewCellFormatTargetInterfaceModel[] => {
+    const selection = tableSelection.selection;
+    if (!selection) return [];
+    const targets: EnvironmentOverviewCellFormatTargetInterfaceModel[] = [];
+    for (let row = selection.startRow; row <= selection.endRow; row++) {
+      const environment = filteredEnvironments[row];
+      if (!environment) continue;
+      for (let col = selection.startCol; col <= selection.endCol; col++) {
+        const column = visibleColumns[col];
+        if (!column) continue;
+        targets.push({ environmentOverviewId: environment.id, columnKey: column.key });
+      }
+    }
+    return targets;
+  };
+
+  const handleCellContextMenu = (event: React.MouseEvent, rowIndex: number, colIndex: number): void => {
+    if (!isEditMode) return;
+    event.preventDefault();
+
+    if (!tableSelection.isCellSelected(rowIndex, colIndex)) {
+      tableSelection.selectCell(rowIndex, colIndex);
+    }
+
+    setContextMenu({ isOpen: true, x: event.clientX, y: event.clientY });
+  };
+
+  const handleCloseContextMenu = (): void => {
+    setContextMenu((previous) => ({ ...previous, isOpen: false }));
+  };
+
+  const isEveryTargetAlready = (
+    targets: EnvironmentOverviewCellFormatTargetInterfaceModel[],
+    key: 'isBold' | 'isItalic' | 'isUnderline'
+  ): boolean =>
+    targets.length > 0 &&
+    targets.every(
+      (target) =>
+        cellFormatByKey.get(`${target.environmentOverviewId}:${target.columnKey}`)?.[key] === true
+    );
+
+  const handleToggleBold = (): void => {
+    const targets = getSelectedCellTargets();
+    if (targets.length === 0) return;
+    updateCellFormatMutation.mutate({ cells: targets, isBold: !isEveryTargetAlready(targets, 'isBold') });
+  };
+
+  const handleToggleItalic = (): void => {
+    const targets = getSelectedCellTargets();
+    if (targets.length === 0) return;
+    updateCellFormatMutation.mutate({ cells: targets, isItalic: !isEveryTargetAlready(targets, 'isItalic') });
+  };
+
+  const handleToggleUnderline = (): void => {
+    const targets = getSelectedCellTargets();
+    if (targets.length === 0) return;
+    updateCellFormatMutation.mutate({ cells: targets, isUnderline: !isEveryTargetAlready(targets, 'isUnderline') });
+  };
+
+  const handleSetColor = (colorKey: string): void => {
+    const targets = getSelectedCellTargets();
+    if (targets.length === 0) return;
+    updateCellFormatMutation.mutate({ cells: targets, backgroundColorKey: colorKey });
+    handleCloseContextMenu();
+  };
+
+  const handleClearColor = (): void => {
+    const targets = getSelectedCellTargets();
+    if (targets.length === 0) return;
+    updateCellFormatMutation.mutate({ cells: targets, clearBackgroundColor: true });
+    handleCloseContextMenu();
+  };
+
+  const opacityDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const contextMenuTargets = getSelectedCellTargets();
+  const firstTargetFormat =
+    contextMenuTargets.length > 0
+      ? cellFormatByKey.get(`${contextMenuTargets[0]?.environmentOverviewId}:${contextMenuTargets[0]?.columnKey}`)
+      : undefined;
+  const hasActiveColor = contextMenuTargets.some((target) => {
+    const format = cellFormatByKey.get(`${target.environmentOverviewId}:${target.columnKey}`);
+    return !!format?.backgroundColorKey;
+  });
+  const currentOpacity = firstTargetFormat?.backgroundOpacity ?? 100;
+  const currentTextColorKey = firstTargetFormat?.textColorKey ?? 'default';
+
+  const currentBackgroundColorName = (() => {
+    const key = firstTargetFormat?.backgroundColorKey;
+    if (!key) return 'None';
+    const fixed = CellFormatCON.COLORS.find(
+      (c) => c.key.toLowerCase() === key.toLowerCase() || c.hexColor.toLowerCase() === key.toLowerCase()
+    );
+    if (fixed) return fixed.label;
+    const custom = customColors.find(
+      (c) =>
+        c.colorName.toLowerCase() === key.toLowerCase() ||
+        CellFormatHelper.current.getApplicableColorKey(c).toLowerCase() === key.toLowerCase()
+    );
+    if (custom) return custom.colorName;
+    return key;
+  })();
+
+  const handleOpacityChange = (newOpacity: number): void => {
+    const targets = getSelectedCellTargets();
+    if (targets.length === 0) return;
+
+    if (opacityDebounceTimerRef.current !== null) {
+      clearTimeout(opacityDebounceTimerRef.current);
+    }
+
+    // Immediate optimistic update
+    updateCellFormatMutation.mutate({ cells: targets, backgroundOpacity: newOpacity });
+
+    // Debounced persist is already handled because mutate triggers optimistic update immediately!
+  };
+
+  const handleSetTextColor = (textColorKey: string): void => {
+    const targets = getSelectedCellTargets();
+    if (targets.length === 0) return;
+    if (textColorKey === 'default') {
+      updateCellFormatMutation.mutate({ cells: targets, clearTextColor: true });
+    } else {
+      updateCellFormatMutation.mutate({ cells: targets, textColorKey });
+    }
+    handleCloseContextMenu();
+  };
+
+  // Backs the spreadsheet-style "apply to the whole selection" behavior for
+  // Add Row/Add Column: a multi-row or multi-column range selected when the
+  // menu opens inserts one new row/column per row/column in that range, not
+  // just one relative to the exact cell that was right-clicked.
+  const getSelectedRowIds = (): string[] => {
+    const selection = tableSelection.selection;
+    if (!selection) return [];
+    const ids: string[] = [];
+    for (let row = selection.startRow; row <= selection.endRow; row++) {
+      const environment = filteredEnvironments[row];
+      if (environment) ids.push(environment.id);
+    }
+    return ids;
+  };
+
+  const getSelectedColumnKeys = (): string[] => {
+    const selection = tableSelection.selection;
+    if (!selection) return [];
+    const keys: string[] = [];
+    for (let col = selection.startCol; col <= selection.endCol; col++) {
+      const column = visibleColumns[col];
+      if (column) keys.push(column.key);
+    }
+    return keys;
+  };
+
+  // Repeatedly inserting relative to the SAME target row/column (rather than
+  // the previous iteration's freshly-created one) is what makes N sequential
+  // single-row/column inserts already land in the correct final order on
+  // their own - see ComputeInsertRowDisplayOrderAsynchronous's own comment
+  // on the backend for why. Awaited one at a time (mutateAsync, not mutate)
+  // so each insert's midpoint is computed against the previous insert's
+  // already-committed result, not a stale pre-insert snapshot.
+  const handleAddRow = async (direction: 'Above' | 'Below'): Promise<void> => {
+    const rowIds = getSelectedRowIds();
+    if (rowIds.length === 0) return;
+    const targetRowId = direction === 'Above' ? rowIds[0] : rowIds[rowIds.length - 1];
+    handleCloseContextMenu();
+    for (let i = 0; i < rowIds.length; i++) {
+      await insertRowMutation.mutateAsync({ relativeToId: targetRowId, direction });
+    }
+  };
+
+  // A multi-column selection creates every new column with the SAME type
+  // (whichever icon was clicked) rather than prompting once per column -
+  // a deliberate simplification of the single-column flow's per-pick type,
+  // since asking N separate times for one multi-select action would be a
+  // much bigger interaction to design than this request called for.
+  const handleAddColumn = async (direction: 'Left' | 'Right', columnType: CustomColumnTypeEnumModelType): Promise<void> => {
+    const columnKeys = getSelectedColumnKeys();
+    if (columnKeys.length === 0) return;
+    const targetColumnKey = direction === 'Left' ? columnKeys[0] : columnKeys[columnKeys.length - 1];
+    handleCloseContextMenu();
+    handleCloseCustomColumnHeaderMenu();
+    for (let i = 0; i < columnKeys.length; i++) {
+      await createCustomColumnMutation.mutateAsync({ relativeToColumnKey: targetColumnKey, direction, columnType });
+    }
+  };
+
+  // Compact row of 4 type-icon buttons, shared by both the cell-body menu's
+  // own "Add Column To Left/Right" entries and the header menu's copies of
+  // the same two actions - a customRender block (not plain ContextMenuItems)
+  // so a click creates the column directly instead of the menu's default
+  // auto-close-then-callback behavior getting in the way.
+  const renderColumnTypePicker = (direction: 'Left' | 'Right'): React.ReactNode => (
+    <div
+      className="px-2.5 py-1.5 flex items-center gap-1"
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      {[
+        { type: CustomColumnTypeEnumModel.Text, icon: <TypeIcon className="w-3.5 h-3.5" />, title: 'Text' },
+        { type: CustomColumnTypeEnumModel.Number, icon: <Hash className="w-3.5 h-3.5" />, title: 'Number' },
+        { type: CustomColumnTypeEnumModel.Date, icon: <Calendar className="w-3.5 h-3.5" />, title: 'Date' },
+        { type: CustomColumnTypeEnumModel.Dropdown, icon: <List className="w-3.5 h-3.5" />, title: 'Dropdown' },
+      ].map(({ type, icon, title }) => (
+        <button
+          key={type}
+          type="button"
+          title={title}
+          onClick={() => handleAddColumn(direction, type)}
+          className="flex-1 flex items-center justify-center py-1.5 rounded-md border text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-slate-100 dark:hover:bg-zinc-800 border-slate-200/60 dark:border-zinc-800 transition-colors cursor-pointer"
+        >
+          {icon}
+        </button>
+      ))}
+    </div>
+  );
+
+  const customColumnHeaderMenuItems = (customColumn: EnvironmentOverviewCustomColumnInterfaceModel): ContextMenuItem[] => [
+    {
+      id: 'rename-column',
+      label: 'Rename Column Header',
+      icon: <Pencil className="w-3.5 h-3.5" />,
+      onClick: () => handleStartRenameCustomColumn(customColumn),
+    },
+    {
+      id: 'delete-column',
+      label: 'Delete Column',
+      icon: <Trash2 className="w-3.5 h-3.5" />,
+      isDestructive: true,
+      onClick: () => setDeletingCustomColumn(customColumn),
+      divider: true,
+    },
+    {
+      id: 'add-column-left-label',
+      label: 'Add Column To Left',
+      customRender: () => (
+        <div className="px-2.5 pt-1.5 text-[11px] font-medium text-slate-500 dark:text-zinc-400">Add Column To Left</div>
+      ),
+    },
+    { id: 'add-column-left-picker', label: '', customRender: () => renderColumnTypePicker('Left') },
+    {
+      id: 'add-column-right-label',
+      label: 'Add Column To Right',
+      customRender: () => (
+        <div className="px-2.5 pt-1.5 text-[11px] font-medium text-slate-500 dark:text-zinc-400">Add Column To Right</div>
+      ),
+    },
+    { id: 'add-column-right-picker', label: '', customRender: () => renderColumnTypePicker('Right') },
+  ];
+
+  const contextMenuItems: ContextMenuItem[] = [
+    {
+      id: 'text-formatting',
+      label: 'Formatting',
+      customRender: () => {
+        const isBoldActive = isEveryTargetAlready(contextMenuTargets, 'isBold');
+        const isItalicActive = isEveryTargetAlready(contextMenuTargets, 'isItalic');
+        const isUnderlineActive = isEveryTargetAlready(contextMenuTargets, 'isUnderline');
+
+        return (
+          <div
+            className="px-2.5 py-1.5 flex items-center gap-1"
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              title="Bold"
+              onClick={handleToggleBold}
+              className={`flex-1 flex items-center justify-center py-1.5 rounded-md border text-xs font-semibold transition-colors cursor-pointer ${
+                isBoldActive
+                  ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800 shadow-xs'
+                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-slate-100 dark:hover:bg-zinc-800 border-slate-200/60 dark:border-zinc-800'
+              }`}
+            >
+              <Bold className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              title="Italic"
+              onClick={handleToggleItalic}
+              className={`flex-1 flex items-center justify-center py-1.5 rounded-md border text-xs font-semibold transition-colors cursor-pointer ${
+                isItalicActive
+                  ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800 shadow-xs'
+                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-slate-100 dark:hover:bg-zinc-800 border-slate-200/60 dark:border-zinc-800'
+              }`}
+            >
+              <Italic className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              title="Underline"
+              onClick={handleToggleUnderline}
+              className={`flex-1 flex items-center justify-center py-1.5 rounded-md border text-xs font-semibold transition-colors cursor-pointer ${
+                isUnderlineActive
+                  ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800 shadow-xs'
+                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-slate-100 dark:hover:bg-zinc-800 border-slate-200/60 dark:border-zinc-800'
+              }`}
+            >
+              <Underline className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        );
+      },
+    },
+    {
+      id: 'background-colors',
+      label: 'Background Color',
+      customRender: () => {
+        const isClearSelected = !firstTargetFormat?.backgroundColorKey;
+        return (
+          <div
+            className="px-2.5 py-2 border-t border-slate-100 dark:border-zinc-800/80"
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className="text-[11px] font-medium text-slate-500 dark:text-zinc-400 mb-2.5 flex items-center justify-between">
+              <span>Background Color</span>
+              <span className="font-mono text-[10px] text-slate-400 dark:text-zinc-500 capitalize">
+                {currentBackgroundColorName}
+              </span>
+            </div>
+            <div className="grid grid-cols-6 gap-2 justify-items-center">
+              <button
+                type="button"
+                title="Clear background color"
+                onClick={handleClearColor}
+                className={`relative w-6 h-6 rounded-full transition-all cursor-pointer flex items-center justify-center border border-slate-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-slate-400 dark:text-zinc-500 hover:text-rose-500 dark:hover:text-rose-400 ${
+                  isClearSelected
+                    ? 'ring-2 ring-offset-1 ring-blue-500 dark:ring-blue-400 scale-110 z-10'
+                    : 'hover:scale-110 opacity-80 hover:opacity-100'
+                }`}
+              >
+                <Ban className="w-3.5 h-3.5" />
+              </button>
+              {CellFormatCON.COLORS.map((color) => {
+                const isSelected =
+                  firstTargetFormat?.backgroundColorKey?.toLowerCase() === color.key.toLowerCase() ||
+                  firstTargetFormat?.backgroundColorKey?.toLowerCase() === color.hexColor.toLowerCase();
+                return (
+                  <button
+                    key={color.key}
+                    type="button"
+                    title={color.label}
+                    onClick={() => handleSetColor(color.key)}
+                    className={`relative w-6 h-6 rounded-full transition-all cursor-pointer flex items-center justify-center ${
+                      color.swatchClassName
+                    } ${
+                      isSelected
+                        ? 'ring-2 ring-offset-1 ring-blue-500 dark:ring-blue-400 scale-110 z-10'
+                        : 'hover:scale-110 opacity-80 hover:opacity-100'
+                    }`}
+                  />
+                );
+              })}
+              {customColors.map((option) => {
+                const applicableKey = CellFormatHelper.current.getApplicableColorKey(option);
+                const isSelected =
+                  firstTargetFormat?.backgroundColorKey?.toLowerCase() === applicableKey.toLowerCase();
+                return (
+                  <button
+                    key={option.colorName}
+                    type="button"
+                    title={option.colorName}
+                    onClick={() => handleSetColor(applicableKey)}
+                    style={CellFormatHelper.current.getSwatchStyleForCustomColor(option)}
+                    className={`relative w-6 h-6 rounded-full transition-all cursor-pointer flex items-center justify-center ring-1 ring-inset ring-black/10 dark:ring-white/10 ${
+                      isSelected
+                        ? 'ring-2 ring-offset-1 ring-blue-500 dark:ring-blue-400 scale-110 z-10'
+                        : 'hover:scale-110 opacity-80 hover:opacity-100'
+                    }`}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        );
+      },
+    },
+    ...(hasActiveColor
+      ? [
+          {
+            id: 'opacity-slider',
+            label: 'Opacity',
+            customRender: () => (
+              <div
+                className="px-2.5 py-2 space-y-1.5 border-t border-slate-100 dark:border-zinc-800/80"
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between text-[11px] font-medium text-slate-600 dark:text-zinc-300">
+                  <span>Opacity</span>
+                  <span className="font-mono text-[10px] text-slate-400 dark:text-zinc-500">{currentOpacity}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={currentOpacity}
+                  onChange={(e) => handleOpacityChange(Number(e.target.value))}
+                  className="w-full h-1.5 bg-slate-200 dark:bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-[#0C2086] dark:accent-blue-500"
+                />
+              </div>
+            ),
+          },
+        ]
+      : []),
+    {
+      id: 'add-color',
+      label: 'Add Color',
+      icon: <Plus className="w-3.5 h-3.5" />,
+      onClick: () => setIsAddColorModalOpen(true),
+      divider: true,
+    },
+    {
+      id: 'text-colors',
+      label: 'Text Color',
+      customRender: () => (
+        <div
+          className="px-2.5 py-2 border-t border-slate-100 dark:border-zinc-800/80"
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <div className="text-[11px] font-medium text-slate-500 dark:text-zinc-400 mb-2.5 flex items-center justify-between">
+            <span>Text Color</span>
+            <span className="font-mono text-[10px] text-slate-400 dark:text-zinc-500 capitalize">
+              {currentTextColorKey}
+            </span>
+          </div>
+          <div className="grid grid-cols-6 gap-2 justify-items-center">
+            {CellFormatCON.TEXT_COLORS.map((tc) => {
+              const isSelected = (currentTextColorKey || 'default').toLowerCase() === tc.key.toLowerCase();
+              return (
+                <button
+                  key={tc.key}
+                  type="button"
+                  title={tc.label}
+                  onClick={() => handleSetTextColor(tc.key)}
+                  className={`relative w-6 h-6 rounded-full transition-all cursor-pointer flex items-center justify-center ${
+                    tc.swatchClassName
+                  } ${
+                    isSelected
+                      ? 'ring-2 ring-offset-1 ring-blue-500 dark:ring-blue-400 scale-110 z-10'
+                      : 'hover:scale-110 opacity-80 hover:opacity-100'
+                  }`}
+                >
+                  {tc.key === 'default' && (
+                    <span className="text-[11px] font-bold text-slate-600 dark:text-zinc-300 leading-none">
+                      A
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: 'add-row-above',
+      label: 'Add Row Above',
+      icon: <ArrowUpToLine className="w-3.5 h-3.5" />,
+      onClick: () => void handleAddRow('Above'),
+      divider: true,
+    },
+    {
+      id: 'add-row-below',
+      label: 'Add Row Below',
+      icon: <ArrowDownToLine className="w-3.5 h-3.5" />,
+      onClick: () => void handleAddRow('Below'),
+    },
+    {
+      id: 'add-column-left-label',
+      label: 'Add Column To Left',
+      customRender: () => (
+        <div className="px-2.5 pt-2.5 pb-0.5 border-t border-slate-100 dark:border-zinc-800/80 text-[11px] font-medium text-slate-500 dark:text-zinc-400">
+          Add Column To Left
+        </div>
+      ),
+    },
+    {
+      id: 'add-column-left-picker',
+      label: '',
+      // Disabled (no picker rendered) when every selected column includes
+      // Environment - it must always stay the leftmost column.
+      customRender: () =>
+        getSelectedColumnKeys().includes('environment') ? (
+          <div className="px-2.5 pb-1.5 text-[11px] text-slate-400 dark:text-zinc-500 italic">
+            Not available for Environment
+          </div>
+        ) : (
+          renderColumnTypePicker('Left')
+        ),
+    },
+    {
+      id: 'add-column-right-label',
+      label: 'Add Column To Right',
+      customRender: () => (
+        <div className="px-2.5 pt-1.5 text-[11px] font-medium text-slate-500 dark:text-zinc-400">Add Column To Right</div>
+      ),
+    },
+    { id: 'add-column-right-picker', label: '', customRender: () => renderColumnTypePicker('Right') },
+  ];
+
+  const updateStatusMutation = TanstackQueryClientService.current.environmentOverview.useUpdateEnvironmentStatusMutation({
+    onSuccess: () => {
+      setPendingStatusRowId(null);
+    },
+    onError: (error) => {
+      setPendingStatusRowId((currentRowId) => {
+        if (currentRowId) {
+          if (statusErrorTimerRef.current !== null) clearTimeout(statusErrorTimerRef.current);
+          setStatusErrorByRowId({ rowId: currentRowId, message: error.message });
+          statusErrorTimerRef.current = setTimeout(() => setStatusErrorByRowId(null), 4000);
+        }
+        return null;
+      });
+    },
+  });
+
+  // Fires the moment a Status option is picked - no separate confirm step.
+  // The cell keeps showing its last known-good value until the server
+  // responds (no optimistic update), so a failure never looks like a
+  // silent revert - it just never visually changed in the first place.
+  const handleStatusChange = (rowId: string, newStatus: string): void => {
+    setPendingStatusRowId(rowId);
+    updateStatusMutation.mutate({
+      id: rowId,
+      request: { status: newStatus, changedByClientId: AnonymousClientIdentityUtility.current.getOrCreateClientId() },
+    });
+  };
+
+  const handleOpenOptionModal = (fieldName: string, rowId: string): void => {
+    setOptionModalTarget({ fieldName, rowId });
+    setIsOptionModalOpen(true);
+  };
+
+  // Sponsor saves immediately on selection, same UX as Status - it goes
+  // through the generic Field endpoint (handleFieldSave) rather than
+  // Status's own dedicated UpdateStatus+history mechanism, since Sponsor
+  // carries none of Status's audit-trail requirement.
+  const handleSponsorChange = (rowId: string, newSponsor: string, previousSponsor: string | null): void => {
+    handleFieldSave(rowId, 'sponsor', 'Sponsor', newSponsor, previousSponsor);
+  };
+
+  const handleOptionCreated = (newValue: string): void => {
+    if (!optionModalTarget) return;
+
+    const { fieldName, rowId } = optionModalTarget;
+    if (fieldName === 'Status') {
+      handleStatusChange(rowId, newValue);
+    } else if (fieldName === 'Sponsor') {
+      const environment = environments.find((candidate) => candidate.id === rowId);
+      handleSponsorChange(rowId, newValue, environment?.sponsor ?? null);
+    } else if (fieldName === 'UptimeScheduleType') {
+      // Unlike Status/Sponsor, this doesn't save immediately - it just
+      // selects the freshly-created mode into the still-open draft editor,
+      // same as clicking any other mode option would.
+      handleSelectUptimeScheduleSpecialMode(newValue);
+    } else if (fieldName === 'OnDemandStatus') {
+      setUptimeScheduleDraftOnDemandStatus(newValue);
+    }
+    setOptionModalTarget(null);
+  };
+
+  const updateFieldMutation = TanstackQueryClientService.current.environmentOverview.useUpdateFieldMutation();
+  const updateUptimeScheduleMutation = TanstackQueryClientService.current.environmentOverview.useUpdateUptimeScheduleMutation();
+
+  // Shared by every field that persists through the generic Field endpoint -
+  // Purpose/Priority/DNS URL's textareas call this on blur (the user's own
+  // confirmed choice over an explicit save button), Sponsor's dropdown calls
+  // it immediately on selection (matching Status's own save-on-select UX).
+  // Skips the request entirely when the trimmed value didn't actually
+  // change, since a blur that didn't edit anything (or a dropdown re-
+  // selecting its own current value) would otherwise fire a no-op save.
+  // Empty string and null are treated as equivalent "nothing here" states
+  // for this comparison, matching UpdateFieldAsynchronous's own
+  // normalisation on the backend. Pending/error state is tracked per call
+  // (not via the mutation hook's own onSuccess/onError) since several of
+  // these cells could be mid-save at once.
+  const handleFieldSave = (
+    rowId: string,
+    columnKey: keyof EnvironmentOverviewInterfaceModel,
+    fieldName: string,
+    rawValue: string,
+    originalValue: string | null
+  ): void => {
+    const trimmedNewValue = rawValue.trim();
+    const trimmedOriginalValue = (originalValue ?? '').trim();
+    if (trimmedNewValue === trimmedOriginalValue) return;
+
+    const cellKey = `${rowId}:${String(columnKey)}`;
+    setPendingFieldEditKeys((previous) => new Set(previous).add(cellKey));
+    setFieldEditErrorByKey((current) => (current?.key === cellKey ? null : current));
+
+    updateFieldMutation.mutate(
+      { id: rowId, request: { fieldName, value: trimmedNewValue || null } },
+      {
+        onSuccess: () => {
+          setPendingFieldEditKeys((previous) => {
+            const next = new Set(previous);
+            next.delete(cellKey);
+            return next;
+          });
+        },
+        onError: (error) => {
+          setPendingFieldEditKeys((previous) => {
+            const next = new Set(previous);
+            next.delete(cellKey);
+            return next;
+          });
+          if (fieldEditErrorTimerRef.current !== null) clearTimeout(fieldEditErrorTimerRef.current);
+          setFieldEditErrorByKey({
+            key: cellKey,
+            message: error instanceof Error ? error.message : 'Failed to update the field.',
+          });
+          fieldEditErrorTimerRef.current = setTimeout(() => {
+            setFieldEditErrorByKey((current) => (current?.key === cellKey ? null : current));
+          }, 4000);
+        },
+      }
+    );
+  };
+
+  const addActionItemMutation = TanstackQueryClientService.current.environmentOverview.useAddActionItemMutation({
+    onSuccess: () => {
+      setActionItemDraftRowId(null);
+      setActionItemDraftText('');
+      setActionItemDraftError(null);
+    },
+    onError: (error) => {
+      setActionItemDraftError(error.message);
+    },
+  });
+
+  // Same three-letter-month format ActionItemsLineParserUtility normalizes
+  // every other date to, and the exact format the backend actually persists
+  // (EnvironmentOverviewService.AddActionItemAsynchronous) - so the draft
+  // preview shown before saving looks identical to how it'll render after.
+  const getTodayFormattedDate = (): string => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const today = new Date();
+    return `${String(today.getDate()).padStart(2, '0')}-${months[today.getMonth()]}-${today.getFullYear()}`;
+  };
+
+  const handleOpenActionItemDraft = (rowId: string): void => {
+    setEditingActionItem(null);
+    setActionItemDraftRowId(rowId);
+    setActionItemDraftText('');
+    setActionItemDraftError(null);
+  };
+
+  const handleDiscardActionItemDraft = (): void => {
+    setActionItemDraftRowId(null);
+    setActionItemDraftText('');
+    setActionItemDraftError(null);
+  };
+
+  const handleSaveActionItemDraft = (): void => {
+    if (!actionItemDraftRowId) return;
+    const trimmedNote = actionItemDraftText.trim();
+    if (!trimmedNote) {
+      setActionItemDraftError('A note is required.');
+      return;
+    }
+    addActionItemMutation.mutate({ id: actionItemDraftRowId, request: { note: trimmedNote } });
+  };
+
+  // Escape discards the draft; Ctrl/Cmd+Enter saves it. stopPropagation on
+  // both for the exact same reason the Add Environment draft row does this -
+  // stops TableSelectionService's own document-level Escape handler from
+  // also firing (a harmless no-op here, but no reason to let it run at all
+  // while editing a draft field).
+  const handleActionItemDraftKeyDown = (event: React.KeyboardEvent): void => {
+    if (event.key === 'Escape') {
+      event.stopPropagation();
+      handleDiscardActionItemDraft();
+      return;
+    }
+    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+      event.stopPropagation();
+      handleSaveActionItemDraft();
+    }
+  };
+
+  useEffect(() => {
+    if (actionItemDraftRowId) actionItemDraftInputRef.current?.focus();
+  }, [actionItemDraftRowId]);
+
+  const updateActionItemMutation = TanstackQueryClientService.current.environmentOverview.useUpdateActionItemMutation({
+    onSuccess: () => {
+      setEditingActionItem(null);
+      setEditingActionItemText('');
+      setEditingActionItemError(null);
+    },
+    onError: (error) => {
+      setEditingActionItemError(error.message);
+    },
+  });
+
+  const handleOpenActionItemEdit = (rowId: string, lineIndex: number, line: string): void => {
+    setActionItemDraftRowId(null);
+    setEditingActionItem({ rowId, lineIndex, originalLine: line });
+    setEditingActionItemText(ActionItemsLineParserUtility.current.parseLine(line).note);
+    setEditingActionItemError(null);
+  };
+
+  const handleDiscardActionItemEdit = (): void => {
+    setEditingActionItem(null);
+    setEditingActionItemText('');
+    setEditingActionItemError(null);
+  };
+
+  const handleSaveActionItemEdit = (): void => {
+    if (!editingActionItem) return;
+    const trimmedNote = editingActionItemText.trim();
+    if (!trimmedNote) {
+      setEditingActionItemError('A note is required.');
+      return;
+    }
+    const replacementLineText = ActionItemsLineParserUtility.current.buildReplacementLine(
+      editingActionItem.originalLine,
+      trimmedNote
+    );
+    updateActionItemMutation.mutate({
+      id: editingActionItem.rowId,
+      lineIndex: editingActionItem.lineIndex,
+      request: { replacementLineText },
+    });
+  };
+
+  // Same Escape-discards / Ctrl+Cmd+Enter-saves convention as the Add Entry
+  // draft's own handleActionItemDraftKeyDown, for the same reason.
+  const handleActionItemEditKeyDown = (event: React.KeyboardEvent): void => {
+    if (event.key === 'Escape') {
+      event.stopPropagation();
+      handleDiscardActionItemEdit();
+      return;
+    }
+    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+      event.stopPropagation();
+      handleSaveActionItemEdit();
+    }
+  };
+
+  useEffect(() => {
+    if (editingActionItem) editingActionItemInputRef.current?.focus();
+  }, [editingActionItem]);
+
+  // Double-click, like every other column, enters Edit Mode AND focuses
+  // whatever was actually double-clicked - unlike a plain textarea column
+  // though, there's no single field here, so WHERE the double-click landed
+  // decides the target: see the per-entry handler in renderActionItemsLine
+  // for "double-clicked an existing entry" (opens that entry's edit
+  // directly, no need for this one). This one is "double-clicked empty cell
+  // space" - closest parallel is the Add Entry draft, same as how
+  // Purpose/Priority auto-focus their one textarea. Guarded against an
+  // already-open draft/edit for this same row so an accidental second
+  // double-click can't silently wipe unsaved text - the Pencil icon has no
+  // equivalent guard since switching between EXISTING entries is already
+  // today's accepted behavior there, but this empty-space path is new
+  // surface area double-click introduces.
+  const handleActionItemsCellDoubleClick = (rowId: string): void => {
+    if (actionItemDraftRowId === rowId || editingActionItem?.rowId === rowId) return;
+    handleCellDoubleClick(rowId, 'actionItemsUpdates');
+    handleOpenActionItemDraft(rowId);
+  };
+
+  const deleteActionItemMutation = TanstackQueryClientService.current.environmentOverview.useDeleteActionItemMutation({
+    onSuccess: () => {
+      setDeletingActionItem(null);
+    },
+  });
+
+  const handleRequestDeleteActionItem = (rowId: string, lineIndex: number, lineText: string): void => {
+    setDeletingActionItem({ rowId, lineIndex, lineText });
+  };
+
+  const handleConfirmDeleteActionItem = async (): Promise<void> => {
+    if (!deletingActionItem) return;
+    await deleteActionItemMutation.mutateAsync({
+      id: deletingActionItem.rowId,
+      lineIndex: deletingActionItem.lineIndex,
+    });
+    // Deleting a line shifts every later line's index down by one, so any
+    // open edit (whether on the deleted line itself or one after it) would
+    // otherwise be left pointing at the wrong entry - simplest safe move is
+    // to just close it, same as closing the delete-confirmation modal itself.
+    if (editingActionItem?.rowId === deletingActionItem.rowId) {
+      handleDiscardActionItemEdit();
+    }
+  };
+
+  const deleteEnvironmentOverviewMutation =
+    TanstackQueryClientService.current.environmentOverview.useDeleteEnvironmentOverviewMutation({
+      onSuccess: () => {
+        setDeletingEnvironment(null);
+        // Selection is tracked by row/column INDEX, not row identity - once
+        // this row is gone, every row below it shifts up one index, so a
+        // leftover selection would silently highlight a now-different row
+        // instead of just disappearing with the row it used to point at.
+        tableSelection.clearSelection();
+      },
+    });
+
+  const handleRequestDeleteEnvironment = (id: string, environmentName: string): void => {
+    setDeletingEnvironment({ id, environmentName });
+  };
+
+  const handleConfirmDeleteEnvironment = async (): Promise<void> => {
+    if (!deletingEnvironment) return;
+    await deleteEnvironmentOverviewMutation.mutateAsync(deletingEnvironment.id);
+  };
+
+  const handleToggleActionItemsExpanded = (rowId: string): void => {
+    setExpandedActionItemsRowIds((previous) => {
+      const next = new Set(previous);
+      if (next.has(rowId)) {
+        next.delete(rowId);
+        // Collapsing can leave the cell's own scroll position further down
+        // than the now-shorter content allows - reset it so "Show Less"
+        // actually shows the first few entries again, not an empty-looking
+        // scrolled-past view.
+        const scrollEl = actionItemsScrollRefs.current.get(rowId);
+        if (scrollEl) scrollEl.scrollTop = 0;
+      } else {
+        next.add(rowId);
+      }
+      return next;
+    });
+  };
+
+  // Splits a cell's full line list into what the collapsed view shows: every
+  // line up through the Nth real dated line, PLUS any date-less continuation
+  // lines that follow it - stopping only once the (N+1)th real date would
+  // begin. A continuation line is never cut off mid-entry, matching the
+  // explicit "every line is crucial" requirement - only whole dated entries
+  // (and everything that precedes the next one) are ever hidden.
+  const getVisibleActionItemsLines = (allLines: string[]): { visibleLines: string[]; hasMore: boolean } => {
+    const visibleLines: string[] = [];
+    let realDateCount = 0;
+
+    for (const line of allLines) {
+      const parsed = ActionItemsLineParserUtility.current.parseLine(line);
+      if (parsed.date !== null) {
+        realDateCount += 1;
+        if (realDateCount > EnvironmentOverviewCON.MAX_VISIBLE_ACTION_ITEMS_DATES) {
+          return { visibleLines, hasMore: true };
+        }
+      }
+      visibleLines.push(line);
+    }
+
+    return { visibleLines, hasMore: false };
+  };
+
+  // Every row-insertion entry point (the toolbar's "Add Environment" button,
+  // and the right-click "Add Row Above/Below" actions) funnels through this
+  // one mutation - each creates a REAL, immediately-persisted row with an
+  // auto-generated placeholder Environment name, rather than the old
+  // unsaved-draft-you-must-fill-in flow. relativeToId null + "Below" is the
+  // toolbar button's own "append to the end" behavior.
+  const insertRowMutation = TanstackQueryClientService.current.environmentOverview.useInsertRowMutation({
+    onSuccess: (data) => setPendingFocusRowId(data.id),
+  });
+
+  const handleAddEnvironmentClick = (): void => {
+    // Unlike the right-click "Add Row Above/Below" actions (already only
+    // reachable in Edit Mode), this toolbar button is visible in View Mode
+    // too - the new row's Environment cell only renders as an editable
+    // textarea in Edit Mode, so switching here is what makes "immediately
+    // editable" actually true regardless of which mode the user started in.
+    setEditMode(ViewEditModeCON.EDIT);
+    insertRowMutation.mutate({ relativeToId: null, direction: 'Below' });
+  };
+
+  // Scrolls the newly-inserted row into view and focuses its Environment
+  // cell for immediate renaming - reuses the same editableTextareaRefs map
+  // every other editable text cell already registers itself into, keyed
+  // "<rowId>:environment", rather than a dedicated ref.
+  useEffect(() => {
+    if (!pendingFocusRowId) return;
+    const rowElement = tableWrapperRef.current?.querySelector(`[data-row-id="${pendingFocusRowId}"]`);
+    rowElement?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+
+    const textarea = editableTextareaRefs.current.get(`${pendingFocusRowId}:environment`);
+    if (textarea) {
+      textarea.focus({ preventScroll: true });
+      textarea.select();
+    }
+    setPendingFocusRowId(null);
+  }, [pendingFocusRowId]);
+
+  // A thin drag handle straddling a header's right border - the hit zone is
+  // deliberately much wider (16px, 8 on each side of the true border) than
+  // the visible line (1-2px), since a pixel-perfect hit zone is frustrating
+  // to grab; only the thin inner line is actually drawn, so the extra width
+  // costs nothing visually. Transparent until hovered (subtle line) or
+  // actively dragged (brighter, thicker line), matching Excel's own "only
+  // show it when it matters" treatment.
+  const renderResizeHandle = (columnKey: string): React.ReactNode => {
+    const isResizing = columnWidths.resizingColumnKey === columnKey;
+    return (
+      <div
+        onMouseDown={(event) => {
+          // Stops this from also bubbling into the header's own mousedown
+          // (TableSelectionService's column-select-by-header-click) - same
+          // reason the Environment column's filter dropdown does this.
+          // Without it, every resize drag also started a column selection.
+          event.stopPropagation();
+          columnWidths.getResizeHandleProps(columnKey).onMouseDown(event);
+        }}
+        className="absolute inset-y-0 -right-2 w-4 cursor-col-resize select-none z-10 group/resize"
+      >
+        <div
+          className={`absolute inset-y-0 right-2 transition-colors ${
+            isResizing ? 'w-0.5 bg-blue-300' : 'w-px bg-transparent group-hover/resize:bg-white/40'
+          }`}
+        />
+      </div>
+    );
+  };
+
+  // Draggable row height handle on the bottom edge of the SL. NO (row number)
+  // cell. Double-clicking resets the row to its default auto height. While
+  // actively dragging, a horizontal guide line extends across the row width.
+  const renderRowResizeHandle = (rowId: string, isLastRow = false): React.ReactNode => {
+    const isResizing = rowHeights.resizingRowId === rowId;
+    return (
+      <div
+        onMouseDown={(event) => {
+          event.stopPropagation();
+          rowHeights.getResizeHandleProps(rowId).onMouseDown(event);
+        }}
+        onDoubleClick={(event) => {
+          event.stopPropagation();
+          rowHeights.getResizeHandleProps(rowId).onDoubleClick(event);
+        }}
+        title="Drag to resize row height · Double-click to reset"
+        className={`absolute inset-x-0 ${
+          isLastRow ? 'bottom-0 h-3' : '-bottom-2 h-4'
+        } cursor-row-resize select-none z-10 group/resize-row`}
+      >
+        <div
+          className={`absolute inset-x-0 ${
+            isLastRow ? 'bottom-0' : 'bottom-2'
+          } transition-colors ${
+            isResizing ? 'h-0.5 bg-blue-500 dark:bg-blue-400' : 'h-px bg-transparent group-hover/resize-row:bg-blue-400/70'
+          }`}
+        />
+        {isResizing && (
+          <div
+            className={`absolute left-0 ${
+              isLastRow ? 'bottom-0' : 'bottom-2'
+            } w-[9999px] h-0.5 bg-blue-500/80 dark:bg-blue-400/80 pointer-events-none z-20 shadow-xs`}
+          />
+        )}
+      </div>
+    );
+  };
+
+  // Purpose/Priority1-3/DNS URL's Edit Mode rendering - an uncontrolled
+  // textarea (defaultValue, not value) rather than React-controlled state
+  // per keystroke: the DOM owns what's typed, so an unrelated re-render
+  // elsewhere in the table (another row's pending/error state changing)
+  // can't reset a user's in-progress typing in this cell. The key stays
+  // tied to the row+column, never to the value itself, so React doesn't
+  // force a remount mid-typing either.
+  const renderEditableTextCell = (
+    environment: EnvironmentOverviewInterfaceModel,
+    column: EnvironmentOverviewColumnDef,
+    fieldName: string,
+    columnWidth: number,
+    rowIndex: number,
+    colIndex: number
+  ): React.ReactNode => {
+    const cellKey = `${environment.id}:${column.key}`;
+    const isPending = pendingFieldEditKeys.has(cellKey);
+    const cellError = fieldEditErrorByKey?.key === cellKey ? fieldEditErrorByKey.message : null;
+    const currentValue = (environment[column.key] as string | null) ?? '';
+
+    const format = cellFormatByKey.get(`${environment.id}:${column.key}`);
+    const formatClassName = format
+      ? `${format.isBold ? 'font-bold' : ''} ${format.isItalic ? 'italic' : ''} ${format.isUnderline ? 'underline underline-offset-2' : ''} ${CellFormatHelper.current.getCellClassName(format.backgroundColorKey)}`
+      : '';
+    const formatStyle = {
+      ...CellFormatHelper.current.getCellStyle(format?.backgroundColorKey, format?.backgroundOpacity),
+      ...CellFormatHelper.current.getTextStyle(format?.textColorKey),
+    };
+    const onCellContextMenu = (event: React.MouseEvent): void => handleCellContextMenu(event, rowIndex, colIndex);
+    const cellHandlers = tableSelection.getCellHandlers(rowIndex, colIndex);
+
+    return (
+      <td
+        key={column.key}
+        style={{
+          boxShadow: tableSelection.getCellSelectionBoxShadow(rowIndex, colIndex),
+          width: columnWidth,
+          ...formatStyle,
+        }}
+        onMouseDown={cellHandlers.onMouseDown}
+        onMouseEnter={cellHandlers.onMouseEnter}
+        onContextMenu={onCellContextMenu}
+        className={`px-3 py-2 align-top ${formatClassName}`}
+      >
+        <textarea
+          key={cellKey}
+          ref={(el) => {
+            if (el) editableTextareaRefs.current.set(cellKey, el);
+            else editableTextareaRefs.current.delete(cellKey);
+          }}
+          defaultValue={currentValue}
+          disabled={isPending}
+          rows={2}
+          aria-label={column.label}
+          style={CellFormatHelper.current.getTextStyle(format?.textColorKey)}
+          onMouseDown={(event) => event.stopPropagation()}
+          onBlur={(event) =>
+            handleFieldSave(environment.id, column.key, fieldName, event.target.value, currentValue)
+          }
+          className={`${EnvironmentOverviewCON.DRAFT_INPUT_CLASS_NAME} ${formatClassName}`}
+        />
+        {cellError && <p className="mt-1 text-[10px] text-rose-500">{cellError}</p>}
+      </td>
+    );
+  };
+
+  const renderTextCell = (
+    environment: EnvironmentOverviewInterfaceModel,
+    column: EnvironmentOverviewColumnDef,
+    rowIndex: number,
+    colIndex: number
+  ): React.ReactNode => {
+    const displayValue = environment[column.key];
+    const cellHandlers = tableSelection.getCellHandlers(rowIndex, colIndex);
+
+    const columnWidth = columnWidths.getColumnWidth(column.key);
+
+    const format = cellFormatByKey.get(`${environment.id}:${column.key}`);
+    const formatClassName = format
+      ? `${format.isBold ? 'font-bold' : ''} ${format.isItalic ? 'italic' : ''} ${format.isUnderline ? 'underline underline-offset-2' : ''} ${CellFormatHelper.current.getCellClassName(format.backgroundColorKey)}`
+      : '';
+    const cellClassName = `${EnvironmentOverviewCON.CELL_CLASS_NAME} ${formatClassName}`;
+    const formatStyle = {
+      ...CellFormatHelper.current.getCellStyle(format?.backgroundColorKey, format?.backgroundOpacity),
+      ...CellFormatHelper.current.getTextStyle(format?.textColorKey),
+    };
+    const onCellContextMenu = (event: React.MouseEvent): void => handleCellContextMenu(event, rowIndex, colIndex);
+
+    if (isEditMode && column.key === 'sponsor') {
+      return renderSponsorCell(environment, columnWidth, rowIndex, colIndex);
+    }
+
+    // Decommissioned overrides the raw stored value entirely, in both View
+    // and Edit Mode - Status already owns "is this environment alive"
+    // (a real controlled dropdown), so this column shouldn't try to also
+    // encode that a second time via whatever schedule text happened to be
+    // left over from when it was still running. See the grilling session
+    // that designed this feature for why that text isn't preserved anywhere.
+    if (column.key === 'currentUptimeSchedule' && environment.status === 'Decommissioned') {
+      return (
+        <td
+          key={column.key}
+          onContextMenu={onCellContextMenu}
+          style={{ boxShadow: tableSelection.getCellSelectionBoxShadow(rowIndex, colIndex), width: columnWidth }}
+          className={EnvironmentOverviewCON.CELL_CLASS_NAME}
+        >
+          <span className="inline-block px-2 py-0.5 rounded-md bg-rose-600 text-white font-mono font-bold text-[11px]">
+            Decommissioned
+          </span>
+        </td>
+      );
+    }
+
+    if (isEditMode && column.key === 'currentUptimeSchedule') {
+      return renderCurrentUptimeScheduleCell(environment, columnWidth, rowIndex, colIndex);
+    }
+
+    const editableFieldName = EnvironmentOverviewCON.EDITABLE_TEXT_FIELD_NAMES[column.key];
+    if (isEditMode && editableFieldName) {
+      return renderEditableTextCell(environment, column, editableFieldName, columnWidth, rowIndex, colIndex);
+    }
+
+    const isCellEditable =
+      Boolean(EnvironmentOverviewCON.EDITABLE_TEXT_FIELD_NAMES[column.key]) ||
+      column.key === 'sponsor' ||
+      (column.key === 'currentUptimeSchedule' && environment.status !== 'Decommissioned');
+
+    if (displayValue === null || displayValue === '') {
+      return (
+        <td
+          key={column.key}
+          onMouseDown={cellHandlers.onMouseDown}
+          onMouseEnter={cellHandlers.onMouseEnter}
+          onContextMenu={onCellContextMenu}
+          onDoubleClick={isCellEditable ? () => handleCellDoubleClick(environment.id, column.key) : undefined}
+          style={{ boxShadow: tableSelection.getCellSelectionBoxShadow(rowIndex, colIndex), width: columnWidth, ...formatStyle }}
+          className={`${cellClassName} ${isCellEditable ? 'cursor-pointer select-none' : ''}`}
+        >
+          <span className="text-slate-300 dark:text-zinc-700">—</span>
+        </td>
+      );
+    }
+
+    const stringValue = displayValue.toString();
+    // View Mode's own generic cell rendering - only this one column also
+    // shows the note summary (the "value"/aria-label/copy behavior below
+    // stays schedule-only on purpose, so Copy never pulls in the note).
+    const uptimeScheduleNoteSummary =
+      column.key === 'currentUptimeSchedule' ? environment.uptimeScheduleNoteSummary : null;
+
+    return (
+      <CopyableTableCellSharedComponent
+        key={column.key}
+        value={stringValue}
+        ariaLabel={`Copy ${column.label}: ${stringValue}`}
+        className={cellClassName}
+        buttonStyle={formatStyle}
+        selectionBoxShadow={tableSelection.getCellSelectionBoxShadow(rowIndex, colIndex)}
+        onCellMouseDown={cellHandlers.onMouseDown}
+        onCellMouseEnter={cellHandlers.onMouseEnter}
+        onCellContextMenu={onCellContextMenu}
+        onCellDoubleClick={isCellEditable ? () => handleCellDoubleClick(environment.id, column.key) : undefined}
+        verticalAlign="top"
+        width={columnWidth}
+      >
+        {stringValue}
+        {uptimeScheduleNoteSummary && (
+          <span className="block mt-0.5 text-slate-400 dark:text-zinc-500 font-sans">
+            {uptimeScheduleNoteSummary}
+          </span>
+        )}
+      </CopyableTableCellSharedComponent>
+    );
+  };
+
+  // Most lines in this column follow a "DATE: NOTE" convention (dated
+  // history entries, newest-first) - ActionItemsLineParserUtility splits
+  // each line into its leading date (if any, normalized to a fixed-width
+  // "DD-Mon-YYYY" shape) and the rest. Every line gets a same-shaped tag
+  // regardless - a line with no recognizable leading date gets a generic
+  // "Unrevealed" tag instead of a real date, rather than being left as bare
+  // plain text, since every line is treated as equally worth keeping visible.
+  const renderActionItemsLine = (rowId: string, line: string, lineIndex: number): React.ReactNode => {
+    const parsed = ActionItemsLineParserUtility.current.parseLine(line);
+    const hasDate = parsed.date !== null;
+    const isEditingThisLine =
+      editingActionItem?.rowId === rowId && editingActionItem.lineIndex === lineIndex;
+
+    const dateTag = (
+      <span
+        className={`shrink-0 mt-px inline-flex items-center justify-center min-w-[72px] rounded-full px-1.5 py-0.5 text-[9px] font-bold text-white whitespace-nowrap ${
+          hasDate ? 'bg-[#0C2086] dark:bg-blue-600' : 'bg-slate-400 dark:bg-zinc-600'
+        }`}
+      >
+        {hasDate ? (
+          <>
+            {parsed.date}
+            {parsed.tag ? ` (${parsed.tag})` : ''}
+          </>
+        ) : (
+          'Unrevealed'
+        )}
+      </span>
+    );
+
+    // Date pill stays fixed/non-editable even while editing - a date is a
+    // historical fact about when something happened, not something a note
+    // fix should be able to silently rewrite (see handleSaveActionItemEdit,
+    // which rebuilds the line around the ORIGINAL prefix, never this text).
+    if (isEditingThisLine) {
+      return (
+        <div key={lineIndex} className="flex items-start gap-1.5">
+          {dateTag}
+          <div className="flex-1 min-w-0">
+            <textarea
+              ref={editingActionItemInputRef}
+              name="edit-action-item-note"
+              aria-label="Edit this entry's note"
+              value={editingActionItemText}
+              onChange={(event) => {
+                setEditingActionItemText(event.target.value);
+                if (editingActionItemError) setEditingActionItemError(null);
+              }}
+              onKeyDown={handleActionItemEditKeyDown}
+              rows={2}
+              className="w-full bg-transparent border-b border-dashed border-[#0C2086]/30 dark:border-blue-400/40 focus:border-solid focus:border-[#0C2086] dark:focus:border-blue-400 focus:outline-none resize-y whitespace-pre-wrap break-words"
+            />
+            <div className="flex items-center justify-between mt-0.5">
+              <span className="text-[9px]">
+                {editingActionItemError ? (
+                  <span className="text-rose-500 dark:text-rose-400">{editingActionItemError}</span>
+                ) : (
+                  <span className="text-slate-400 dark:text-zinc-500">Ctrl+Enter to save · Esc to discard</span>
+                )}
+              </span>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleDiscardActionItemEdit}
+                  className="font-bold text-slate-400 dark:text-zinc-500 hover:opacity-80 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveActionItemEdit}
+                  disabled={updateActionItemMutation.isPending || !editingActionItemText.trim()}
+                  className="font-bold underline text-[#0C2086] dark:text-blue-400 hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  {updateActionItemMutation.isPending ? 'Saving…' : 'Done'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div
+        key={lineIndex}
+        className="flex items-start gap-1.5 group/action-item"
+        onDoubleClick={(event) => {
+          // Stops the cell-level handler above (handleActionItemsCellDoubleClick)
+          // from ALSO firing and opening a fresh Add Entry draft on top of
+          // this - double-clicking a specific existing entry means "edit
+          // this one", never "add a new one".
+          event.stopPropagation();
+          handleCellDoubleClick(rowId, 'actionItemsUpdates');
+          handleOpenActionItemEdit(rowId, lineIndex, line);
+        }}
+      >
+        {dateTag}
+        <span className="flex-1 whitespace-pre-wrap break-words">{parsed.note}</span>
+        {isEditMode && (
+          <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover/action-item:opacity-100 focus-within:opacity-100 transition-opacity">
+            <button
+              type="button"
+              onClick={() => handleOpenActionItemEdit(rowId, lineIndex, line)}
+              aria-label="Edit this entry"
+              className="mt-px text-slate-300 dark:text-zinc-700 hover:text-[#0C2086] dark:hover:text-blue-400 cursor-pointer"
+            >
+              <Pencil className="w-3 h-3" />
+            </button>
+            <button
+              type="button"
+              onClick={() => handleRequestDeleteActionItem(rowId, lineIndex, line)}
+              aria-label="Delete this entry"
+              className="mt-px text-slate-300 dark:text-zinc-700 hover:text-rose-500 dark:hover:text-rose-400 cursor-pointer"
+            >
+              <Trash2 className="w-3 h-3" />
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // The "+ Add Entry" control at the very top of a row's cell, or (while a
+  // draft is active for this row) the draft itself - today's date in a
+  // non-editable pill matching every other entry's own tag, plus a focused
+  // textarea for the note. Edit-Mode-gated: never rendered in View Mode,
+  // same as the Status column's own editing affordance.
+  const renderActionItemDraftOrButton = (rowId: string): React.ReactNode => {
+    if (actionItemDraftRowId !== rowId) {
+      return (
+        <button
+          type="button"
+          onClick={() => handleOpenActionItemDraft(rowId)}
+          className="flex items-center gap-1 font-bold text-[#0C2086] dark:text-blue-400 hover:opacity-80 cursor-pointer"
+        >
+          <Plus className="w-3 h-3" />
+          Add Entry
+        </button>
+      );
+    }
+
+    return (
+      <div className="flex items-start gap-1.5">
+        <span className="shrink-0 mt-px inline-flex items-center justify-center min-w-[72px] rounded-full bg-[#0C2086] dark:bg-blue-600 px-1.5 py-0.5 text-[9px] font-bold text-white whitespace-nowrap">
+          {getTodayFormattedDate()}
+        </span>
+        <div className="flex-1 min-w-0">
+          <textarea
+            ref={actionItemDraftInputRef}
+            name="draft-action-item-note"
+            aria-label="New action item note"
+            value={actionItemDraftText}
+            onChange={(event) => {
+              setActionItemDraftText(event.target.value);
+              if (actionItemDraftError) setActionItemDraftError(null);
+            }}
+            onKeyDown={handleActionItemDraftKeyDown}
+            placeholder="Type a note…"
+            rows={2}
+            className="w-full bg-transparent border-b border-dashed border-[#0C2086]/30 dark:border-blue-400/40 focus:border-solid focus:border-[#0C2086] dark:focus:border-blue-400 focus:outline-none resize-y whitespace-pre-wrap break-words placeholder:text-slate-300 dark:placeholder:text-zinc-700"
+          />
+          <div className="flex items-center justify-between mt-0.5">
+            <span className="text-[9px]">
+              {actionItemDraftError ? (
+                <span className="text-rose-500 dark:text-rose-400">{actionItemDraftError}</span>
+              ) : (
+                <span className="text-slate-400 dark:text-zinc-500">Ctrl+Enter to save · Esc to discard</span>
+              )}
+            </span>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={handleDiscardActionItemDraft}
+                className="font-bold text-slate-400 dark:text-zinc-500 hover:opacity-80 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveActionItemDraft}
+                disabled={addActionItemMutation.isPending || !actionItemDraftText.trim()}
+                className="font-bold underline text-[#0C2086] dark:text-blue-400 hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              >
+                {addActionItemMutation.isPending ? 'Saving…' : 'Done'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderActionItemsCell = (
+    environment: EnvironmentOverviewInterfaceModel,
+    rowIndex: number,
+    colIndex: number
+  ): React.ReactNode => {
+    const cellHandlers = tableSelection.getCellHandlers(rowIndex, colIndex);
+    const isExpanded = expandedActionItemsRowIds.has(environment.id);
+    const allLines = environment.actionItemsUpdates ? environment.actionItemsUpdates.split('\n') : [];
+    const { visibleLines, hasMore } = isExpanded
+      ? { visibleLines: allLines, hasMore: false }
+      : getVisibleActionItemsLines(allLines);
+
+    const format = cellFormatByKey.get(`${environment.id}:actionItemsUpdates`);
+    const formatClassName = format
+      ? `${format.isBold ? 'font-bold' : ''} ${format.isItalic ? 'italic' : ''} ${format.isUnderline ? 'underline underline-offset-2' : ''} ${CellFormatHelper.current.getCellClassName(format.backgroundColorKey)}`
+      : '';
+    const formatStyle = {
+      ...CellFormatHelper.current.getCellStyle(format?.backgroundColorKey, format?.backgroundOpacity),
+      ...CellFormatHelper.current.getTextStyle(format?.textColorKey),
+    };
+    const onCellContextMenu = (event: React.MouseEvent): void => handleCellContextMenu(event, rowIndex, colIndex);
+
+    return (
+      <td
+        key="actionItemsUpdates"
+        onMouseDown={cellHandlers.onMouseDown}
+        onMouseEnter={cellHandlers.onMouseEnter}
+        onContextMenu={onCellContextMenu}
+        onDoubleClick={() => handleActionItemsCellDoubleClick(environment.id)}
+        style={{
+          boxShadow: tableSelection.getCellSelectionBoxShadow(rowIndex, colIndex),
+          width: columnWidths.getColumnWidth('actionItemsUpdates'),
+          ...formatStyle,
+        }}
+        className={`px-3 py-2 align-top ${formatClassName}`}
+      >
+        {allLines.length > 0 || isEditMode ? (
+          <div
+            ref={(el) => {
+              if (el) actionItemsScrollRefs.current.set(environment.id, el);
+              else actionItemsScrollRefs.current.delete(environment.id);
+            }}
+            style={CellFormatHelper.current.getTextStyle(format?.textColorKey)}
+            className={`action-items-scroll-area overflow-y-auto space-y-2 font-mono text-[11px] leading-relaxed text-slate-700 dark:text-zinc-300 pr-1 ${
+              isExpanded ? 'max-h-[28rem]' : 'max-h-56'
+            }`}
+          >
+            {isEditMode && renderActionItemDraftOrButton(environment.id)}
+            {visibleLines.map((line, lineIndex) => renderActionItemsLine(environment.id, line, lineIndex))}
+            {hasMore && (
+              <button
+                type="button"
+                onClick={() => handleToggleActionItemsExpanded(environment.id)}
+                className="block ml-auto font-bold underline text-[#0C2086] dark:text-blue-400 hover:opacity-80 cursor-pointer"
+              >
+                See All
+              </button>
+            )}
+            {isExpanded && (
+              <button
+                type="button"
+                onClick={() => handleToggleActionItemsExpanded(environment.id)}
+                className="block ml-auto font-bold underline text-[#0C2086] dark:text-blue-400 hover:opacity-80 cursor-pointer"
+              >
+                Show Less
+              </button>
+            )}
+          </div>
+        ) : (
+          <span className="text-slate-300 dark:text-zinc-700">—</span>
+        )}
+      </td>
+    );
+  };
+
+  const renderStatusCell = (
+    environment: EnvironmentOverviewInterfaceModel,
+    rowIndex: number,
+    colIndex: number
+  ): React.ReactNode => {
+    const cellHandlers = tableSelection.getCellHandlers(rowIndex, colIndex);
+    const statusText = environment.status;
+
+    const format = cellFormatByKey.get(`${environment.id}:status`);
+    const formatClassName = format
+      ? `${format.isBold ? 'font-bold' : ''} ${format.isItalic ? 'italic' : ''} ${format.isUnderline ? 'underline underline-offset-2' : ''} ${CellFormatHelper.current.getCellClassName(format.backgroundColorKey)}`
+      : '';
+    const formatStyle = {
+      ...CellFormatHelper.current.getCellStyle(format?.backgroundColorKey, format?.backgroundOpacity),
+      ...CellFormatHelper.current.getTextStyle(format?.textColorKey),
+    };
+    const onCellContextMenu = (event: React.MouseEvent): void => handleCellContextMenu(event, rowIndex, colIndex);
+
+    if (isEditMode) {
+      const isPending = pendingStatusRowId === environment.id;
+      const rowError = statusErrorByRowId?.rowId === environment.id ? statusErrorByRowId.message : null;
+      const shouldAutoOpen =
+        activeDoubleClickedCell?.rowId === environment.id &&
+        activeDoubleClickedCell?.columnKey === 'status';
+
+      return (
+        <td
+          key="status"
+          onContextMenu={onCellContextMenu}
+          style={{
+            boxShadow: tableSelection.getCellSelectionBoxShadow(rowIndex, colIndex),
+            width: columnWidths.getColumnWidth('status'),
+            ...formatStyle,
+          }}
+          className={`px-3 py-2 align-top ${formatClassName}`}
+        >
+          <CustomSelectSharedComponent
+            value={environment.status}
+            onChange={(newStatus) => handleStatusChange(environment.id, newStatus)}
+            options={statusSelectOptions}
+            searchable
+            size="sm"
+            disabled={isPending}
+            initialOpen={shouldAutoOpen}
+            // Status is this table's last (rightmost) column - a left-
+            // anchored panel would grow further right and overflow past the
+            // table/viewport edge, since the trigger itself is much
+            // narrower than the panel's own min-width.
+            dropdownAnchor="right"
+            footerAction={{
+              label: 'Add New Status',
+              icon: <Plus className="w-3.5 h-3.5" />,
+              onClick: () => handleOpenOptionModal('Status', environment.id),
+            }}
+          />
+          {rowError && <p className="mt-1 text-[10px] text-rose-500">{rowError}</p>}
+        </td>
+      );
+    }
+
+    return (
+      <CopyableTableCellSharedComponent
+        key="status"
+        value={statusText}
+        ariaLabel={`Copy Status: ${statusText}`}
+        className={`px-3 py-2 align-top font-mono text-[11px] ${formatClassName}`}
+        buttonStyle={formatStyle}
+        selectionBoxShadow={tableSelection.getCellSelectionBoxShadow(rowIndex, colIndex)}
+        onCellMouseDown={cellHandlers.onMouseDown}
+        onCellMouseEnter={cellHandlers.onMouseEnter}
+        onCellContextMenu={onCellContextMenu}
+        onCellDoubleClick={() => handleCellDoubleClick(environment.id, 'status')}
+        verticalAlign="top"
+        width={columnWidths.getColumnWidth('status')}
+      >
+        <span className="inline-flex items-center gap-1.5" style={CellFormatHelper.current.getTextStyle(format?.textColorKey)}>
+          <span
+            className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+              environment.status === 'Live' ? 'bg-emerald-500' : 'bg-slate-400 dark:bg-zinc-600'
+            }`}
+          />
+          {statusText}
+        </span>
+      </CopyableTableCellSharedComponent>
+    );
+  };
+
+  // Sponsor's Edit Mode rendering - same searchable-dropdown + "Add New"
+  // mechanism as Status, but saved through the generic Field endpoint
+  // (handleFieldSave/updateFieldMutation) rather than Status's own dedicated
+  // UpdateStatus+history mechanism, since Sponsor carries no audit-trail
+  // requirement. Pending/error state is the same Set-keyed one
+  // Purpose/Priority/DNS URL's textareas already use, not Status's own
+  // single-row pendingStatusRowId.
+  const renderSponsorCell = (
+    environment: EnvironmentOverviewInterfaceModel,
+    columnWidth: number,
+    rowIndex: number,
+    colIndex: number
+  ): React.ReactNode => {
+    const cellKey = `${environment.id}:sponsor`;
+    const isPending = pendingFieldEditKeys.has(cellKey);
+    const cellError = fieldEditErrorByKey?.key === cellKey ? fieldEditErrorByKey.message : null;
+
+    const format = cellFormatByKey.get(`${environment.id}:sponsor`);
+    const formatClassName = format
+      ? `${format.isBold ? 'font-bold' : ''} ${format.isItalic ? 'italic' : ''} ${format.isUnderline ? 'underline underline-offset-2' : ''} ${CellFormatHelper.current.getCellClassName(format.backgroundColorKey)}`
+      : '';
+    const formatStyle = {
+      ...CellFormatHelper.current.getCellStyle(format?.backgroundColorKey, format?.backgroundOpacity),
+      ...CellFormatHelper.current.getTextStyle(format?.textColorKey),
+    };
+    const onCellContextMenu = (event: React.MouseEvent): void => handleCellContextMenu(event, rowIndex, colIndex);
+
+    const shouldAutoOpen =
+      activeDoubleClickedCell?.rowId === environment.id &&
+      activeDoubleClickedCell?.columnKey === 'sponsor';
+
+    return (
+      <td
+        key="sponsor"
+        onContextMenu={onCellContextMenu}
+        style={{
+          boxShadow: tableSelection.getCellSelectionBoxShadow(rowIndex, colIndex),
+          width: columnWidth,
+          ...formatStyle,
+        }}
+        className={`px-3 py-2 align-top ${formatClassName}`}
+      >
+        <CustomSelectSharedComponent
+          value={environment.sponsor ?? ''}
+          onChange={(newSponsor) => handleSponsorChange(environment.id, newSponsor, environment.sponsor)}
+          options={sponsorSelectOptions}
+          searchable
+          size="sm"
+          disabled={isPending}
+          initialOpen={shouldAutoOpen}
+          footerAction={{
+            label: 'Add New Sponsor',
+            icon: <Plus className="w-3.5 h-3.5" />,
+            onClick: () => handleOpenOptionModal('Sponsor', environment.id),
+          }}
+        />
+        {cellError && <p className="mt-1 text-[10px] text-rose-500">{cellError}</p>}
+      </td>
+    );
+  };
+
+  // Current Uptime Schedule's Edit Mode rendering - not a plain searchable
+  // single-select like Status/Sponsor, since the value is composite
+  // (weekday checkboxes OR a special mode, plus a conditional time range or
+  // on-demand status) - see UptimeScheduleDropdownController for the
+  // panel's own positioning mechanics and UptimeScheduleTextUtility for how
+  // the selection becomes the stored two-line string.
+  const renderCurrentUptimeScheduleCell = (
+    environment: EnvironmentOverviewInterfaceModel,
+    columnWidth: number,
+    rowIndex: number,
+    colIndex: number
+  ): React.ReactNode => {
+    const cellKey = `${environment.id}:currentUptimeSchedule`;
+    const isPending = pendingFieldEditKeys.has(cellKey);
+    const cellError = fieldEditErrorByKey?.key === cellKey ? fieldEditErrorByKey.message : null;
+
+    const format = cellFormatByKey.get(`${environment.id}:currentUptimeSchedule`);
+    const formatClassName = format
+      ? `${format.isBold ? 'font-bold' : ''} ${format.isItalic ? 'italic' : ''} ${format.isUnderline ? 'underline underline-offset-2' : ''} ${CellFormatHelper.current.getCellClassName(format.backgroundColorKey)}`
+      : '';
+    const formatStyle = {
+      ...CellFormatHelper.current.getCellStyle(format?.backgroundColorKey, format?.backgroundOpacity),
+      ...CellFormatHelper.current.getTextStyle(format?.textColorKey),
+    };
+    const onCellContextMenu = (event: React.MouseEvent): void => handleCellContextMenu(event, rowIndex, colIndex);
+
+    const isOpen = editingUptimeScheduleRowId === environment.id;
+
+    return (
+      <td
+        key="currentUptimeSchedule"
+        onContextMenu={onCellContextMenu}
+        style={{
+          boxShadow: tableSelection.getCellSelectionBoxShadow(rowIndex, colIndex),
+          width: columnWidth,
+          ...formatStyle,
+        }}
+        className={`px-3 py-2 align-top ${formatClassName}`}
+      >
+        <button
+          type="button"
+          onClick={() => handleOpenUptimeScheduleEditor(environment.id, environment.currentUptimeSchedule, environment.uptimeScheduleNote)}
+          className="w-full text-left font-mono text-xs text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-900/60 rounded-lg px-1 py-1 -mx-1 -my-1 transition-colors cursor-pointer whitespace-pre-wrap break-words"
+        >
+          {environment.currentUptimeSchedule ?? (
+            <span className="text-slate-400 dark:text-zinc-500">Set schedule…</span>
+          )}
+          {environment.uptimeScheduleNoteSummary && (
+            <span className="block mt-0.5 text-slate-400 dark:text-zinc-500 font-sans">
+              {environment.uptimeScheduleNoteSummary}
+            </span>
+          )}
+        </button>
+        {cellError && <p className="mt-1 text-[10px] text-rose-500">{cellError}</p>}
+
+        <UptimeScheduleModalController
+          isOpen={isOpen}
+          onClose={handleCloseUptimeScheduleEditor}
+          environmentName={environment.environment}
+          specialModeOptions={uptimeScheduleTypeOptions}
+          onDemandStatusOptions={onDemandStatusOptions}
+          selectedDays={isOpen ? uptimeScheduleDraftDays : new Set()}
+          onToggleDay={handleToggleUptimeScheduleDay}
+          specialMode={isOpen ? uptimeScheduleDraftSpecialMode : null}
+          onSelectSpecialMode={handleSelectUptimeScheduleSpecialMode}
+          onDemandStatus={isOpen ? uptimeScheduleDraftOnDemandStatus : null}
+          onSelectOnDemandStatus={setUptimeScheduleDraftOnDemandStatus}
+          notes={isOpen ? uptimeScheduleDraftNote : ''}
+          onNotesChange={setUptimeScheduleDraftNote}
+          startTime={isOpen ? uptimeScheduleDraftStartTime : ''}
+          endTime={isOpen ? uptimeScheduleDraftEndTime : ''}
+          onStartTimeChange={setUptimeScheduleDraftStartTime}
+          onEndTimeChange={setUptimeScheduleDraftEndTime}
+          previewValue={uptimeSchedulePreviewValue}
+          canSave={canSaveUptimeSchedule}
+          isSaving={isPending}
+          onSave={handleSaveUptimeSchedule}
+          onRequestAddSpecialMode={() => handleOpenOptionModal('UptimeScheduleType', environment.id)}
+          onRequestAddOnDemandStatus={() => handleOpenOptionModal('OnDemandStatus', environment.id)}
+        />
+      </td>
+    );
+  };
+
+  // Custom columns (Text/Number/Date/Dropdown) render through this single
+  // function regardless of type - unlike the fixed columns' own bespoke
+  // per-column renderers (Sponsor's picker, Current Uptime Schedule's
+  // modal, etc.), every custom column behaves uniformly: plain read-only
+  // text in View Mode, a type-appropriate input in Edit Mode.
+  const renderCustomColumnCell = (
+    environment: EnvironmentOverviewInterfaceModel,
+    customColumn: EnvironmentOverviewCustomColumnInterfaceModel,
+    rowIndex: number,
+    colIndex: number
+  ): React.ReactNode => {
+    const columnWidth = columnWidths.getColumnWidth(customColumn.id);
+    const currentValue = environment.customCellValues[customColumn.id] ?? '';
+    const cellHandlers = tableSelection.getCellHandlers(rowIndex, colIndex);
+    const onCellContextMenu = (event: React.MouseEvent): void => handleCellContextMenu(event, rowIndex, colIndex);
+
+    const format = cellFormatByKey.get(`${environment.id}:${customColumn.id}`);
+    const formatClassName = format
+      ? `${format.isBold ? 'font-bold' : ''} ${format.isItalic ? 'italic' : ''} ${format.isUnderline ? 'underline underline-offset-2' : ''} ${CellFormatHelper.current.getCellClassName(format.backgroundColorKey)}`
+      : '';
+    const formatStyle = {
+      ...CellFormatHelper.current.getCellStyle(format?.backgroundColorKey, format?.backgroundOpacity),
+      ...CellFormatHelper.current.getTextStyle(format?.textColorKey),
+    };
+
+    const commitValue = (value: string): void => {
+      const normalized = value.trim();
+      if (normalized === currentValue) return;
+      updateCustomCellValueMutation.mutate({
+        id: environment.id,
+        customColumnId: customColumn.id,
+        request: { value: normalized === '' ? null : normalized },
+      });
+    };
+
+    if (!isEditMode) {
+      return (
+        <CopyableTableCellSharedComponent
+          key={customColumn.id}
+          value={currentValue}
+          ariaLabel={`Copy ${customColumn.headerName}: ${currentValue}`}
+          className={`${EnvironmentOverviewCON.CELL_CLASS_NAME} ${formatClassName}`}
+          buttonStyle={formatStyle}
+          selectionBoxShadow={tableSelection.getCellSelectionBoxShadow(rowIndex, colIndex)}
+          onCellMouseDown={cellHandlers.onMouseDown}
+          onCellMouseEnter={cellHandlers.onMouseEnter}
+          onCellContextMenu={onCellContextMenu}
+          verticalAlign="top"
+          width={columnWidth}
+        >
+          {currentValue || <span className="text-slate-300 dark:text-zinc-700">—</span>}
+        </CopyableTableCellSharedComponent>
+      );
+    }
+
+    // key is deliberately NOT part of this object - React warns against
+    // spreading a "key" prop (it must be passed directly to the JSX
+    // element, not via {...spread}), so every call site below passes
+    // key={customColumn.id} itself alongside {...sharedTdProps}.
+    const sharedTdProps = {
+      style: { boxShadow: tableSelection.getCellSelectionBoxShadow(rowIndex, colIndex), width: columnWidth, ...formatStyle },
+      onMouseDown: cellHandlers.onMouseDown,
+      onMouseEnter: cellHandlers.onMouseEnter,
+      onContextMenu: onCellContextMenu,
+      className: `px-3 py-2 align-top ${formatClassName}`,
+    };
+
+    if (customColumn.columnType === CustomColumnTypeEnumModel.Dropdown) {
+      return (
+        <td key={customColumn.id} {...sharedTdProps}>
+          <CustomSelectSharedComponent
+            value={currentValue}
+            options={customColumn.options.map((option) => ({ value: option, label: option }))}
+            onChange={(value) => {
+              // enableCustomValue just hands back whatever text the user
+              // typed, with no idea whether it's a brand-new option - that
+              // decision (grow the column's own option list, or just reuse
+              // an existing one) happens here.
+              if (!customColumn.options.includes(value)) {
+                addCustomColumnOptionMutation.mutate({ id: customColumn.id, request: { value } });
+              }
+              commitValue(value);
+            }}
+            searchable
+            enableCustomValue
+            size="sm"
+          />
+        </td>
+      );
+    }
+
+    if (customColumn.columnType === CustomColumnTypeEnumModel.Date) {
+      return (
+        <td key={customColumn.id} {...sharedTdProps}>
+          <input
+            type="date"
+            defaultValue={currentValue}
+            aria-label={customColumn.headerName}
+            onMouseDown={(event) => event.stopPropagation()}
+            onBlur={(event) => commitValue(event.target.value)}
+            className={`${EnvironmentOverviewCON.DRAFT_INPUT_CLASS_NAME} ${formatClassName}`}
+          />
+        </td>
+      );
+    }
+
+    if (customColumn.columnType === CustomColumnTypeEnumModel.Number) {
+      return (
+        <td key={customColumn.id} {...sharedTdProps}>
+          <input
+            type="number"
+            defaultValue={currentValue}
+            aria-label={customColumn.headerName}
+            onMouseDown={(event) => event.stopPropagation()}
+            onBlur={(event) => commitValue(event.target.value)}
+            className={`${EnvironmentOverviewCON.DRAFT_INPUT_CLASS_NAME} ${formatClassName}`}
+          />
+        </td>
+      );
+    }
+
+    return (
+      <td key={customColumn.id} {...sharedTdProps}>
+        <textarea
+          ref={(el) => {
+            const cellKey = `${environment.id}:${customColumn.id}`;
+            if (el) editableTextareaRefs.current.set(cellKey, el);
+            else editableTextareaRefs.current.delete(cellKey);
+          }}
+          defaultValue={currentValue}
+          rows={2}
+          aria-label={customColumn.headerName}
+          onMouseDown={(event) => event.stopPropagation()}
+          onBlur={(event) => commitValue(event.target.value)}
+          className={`${EnvironmentOverviewCON.DRAFT_INPUT_CLASS_NAME} ${formatClassName}`}
+        />
+      </td>
+    );
+  };
+
+  return (
+    <div className="flex flex-col gap-6">
+      <p role="status" aria-live="polite" className="sr-only">
+        {searchQuery.trim() ? `${filteredEnvironments.length} Environments match "${searchQuery.trim()}"` : ''}
+      </p>
+
+      <div className="flex items-center justify-between gap-4 pb-6 border-b border-slate-200 dark:border-zinc-800">
+        <div>
+          <h1 className="font-serif-headline text-2xl font-bold text-slate-900 dark:text-white">
+            Environment Overview
+          </h1>
+          <p className="text-sm text-slate-500 dark:text-zinc-400 mt-1">
+            Purpose, ownership, and status for every environment in this register.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          {isAdmin && (
+            <ViewEditModeToggleSharedComponent value={editMode} onChange={handleModeChange} />
+          )}
+
+          <ExpandableSearchSharedComponent
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Search environments…"
+            ariaLabel="Search Environment Overview"
+          />
+          {isAdmin && (
+            <PrimaryActionButtonSharedComponent label="Add Environment" onClick={handleAddEnvironmentClick} size="md" />
+          )}
+
+          <div className="relative shrink-0">
+            <button
+              ref={columnButtonRef}
+              type="button"
+              onClick={() => setIsColumnDropdownOpen((previous) => !previous)}
+              aria-haspopup="dialog"
+              aria-expanded={isColumnDropdownOpen}
+              aria-controls="column-visibility-dropdown-panel"
+              className="flex items-center gap-2 h-9 px-3.5 rounded-lg bg-slate-100 dark:bg-zinc-800/80 text-slate-700 dark:text-zinc-300 hairline-border hover:bg-slate-200 dark:hover:bg-zinc-700/80 transition-colors cursor-pointer text-xs font-semibold"
+            >
+              <Columns3 className="w-3.5 h-3.5" />
+              <span>Columns</span>
+              <ChevronDown
+                className={`w-3.5 h-3.5 text-slate-400 dark:text-zinc-500 transition-transform duration-200 ${
+                  isColumnDropdownOpen ? 'rotate-180' : ''
+                }`}
+              />
+            </button>
+
+            <ColumnVisibilityDropdownSharedComponent
+              isOpen={isColumnDropdownOpen}
+              onClose={handleCloseColumnDropdown}
+              columns={mergedColumns}
+              visibleColumnKeys={visibleColumnKeys}
+              onToggleColumn={handleToggleColumn}
+              onClearAll={handleClearAllColumns}
+              showSearch={false}
+            />
+          </div>
+        </div>
+      </div>
+
+      {environments.length > 0 && (
+        <div ref={tableWrapperRef}>
+          <DataTableContainerSharedComponent ref={tableSelection.containerRef}>
+          {/* table-fixed is load-bearing, not cosmetic: under the default
+              auto layout, an explicit per-cell width is only a soft hint —
+              once every column's hinted width is summed past the table's
+              own w-full cap, the browser freely compresses whichever
+              columns CAN wrap (all of them, since every cell here uses
+              whitespace-pre-wrap) right down toward their minimum
+              content width (effectively their longest unbreakable word),
+              silently ignoring the drag-resized width entirely. Fixed
+              layout makes the first row's widths authoritative instead. */}
+          <table className="w-full table-fixed border-collapse text-xs">
+            <thead>
+              <tr className="divide-x divide-white/10">
+                <TableHeaderCellSharedComponent align="center" className="w-12" style={{ width: 48, minWidth: 48, maxWidth: 48 }}>
+                  SL. NO
+                </TableHeaderCellSharedComponent>
+                {visibleColumns.map((column, colIndex) => (
+                  <TableHeaderCellSharedComponent
+                    key={column.key}
+                    dataColumnKey={column.key}
+                    style={{ width: columnWidths.getColumnWidth(column.key), position: 'relative' }}
+                    {...tableSelection.getColumnHeaderHandlers(colIndex)}
+                    onContextMenu={
+                      column.isCustom && isEditMode
+                        ? (event) => handleCustomColumnHeaderContextMenu(event, column.customColumn!)
+                        : undefined
+                    }
+                    onDoubleClick={
+                      column.isCustom && isEditMode ? () => handleStartRenameCustomColumn(column.customColumn!) : undefined
+                    }
+                  >
+                    {column.isCustom && renamingColumnId === column.key ? (
+                      <input
+                        ref={(el) => {
+                          if (el) renameColumnInputRefs.current.set(column.key, el);
+                          else renameColumnInputRefs.current.delete(column.key);
+                        }}
+                        type="text"
+                        defaultValue={column.label}
+                        onMouseDown={(event) => event.stopPropagation()}
+                        onClick={(event) => event.stopPropagation()}
+                        onBlur={(event) => handleCommitRenameCustomColumn(column.customColumn!, event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            event.currentTarget.blur();
+                          } else if (event.key === 'Escape') {
+                            setRenamingColumnId(null);
+                          }
+                        }}
+                        className="w-full bg-white/10 text-white placeholder:text-white/50 rounded px-1 py-0.5 outline-none ring-1 ring-white/40 font-mono uppercase tracking-wider text-[10px]"
+                      />
+                    ) : (
+                      column.label
+                    )}
+                    {renderResizeHandle(column.key)}
+                  </TableHeaderCellSharedComponent>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200 dark:divide-zinc-800">
+              {filteredEnvironments.map((environment, rowIndex) => (
+                <tr
+                  key={environment.id}
+                  data-row-id={environment.id}
+                  style={
+                    rowHeights.getRowHeight(environment.id)
+                      ? { height: `${rowHeights.getRowHeight(environment.id)}px` }
+                      : undefined
+                  }
+                  className={`divide-x divide-slate-200 dark:divide-zinc-800 ${
+                    highlightedEnvironmentId === environment.id ? 'global-search-row-highlight' : ''
+                  }`}
+                >
+                  <td
+                    {...tableSelection.getRowHeaderHandlers(rowIndex)}
+                    style={{ width: 48, minWidth: 48, maxWidth: 48 }}
+                    className="relative w-12 whitespace-nowrap px-3 py-2 font-mono text-slate-400 dark:text-zinc-500 text-center align-top cursor-pointer select-none"
+                  >
+                    {isEditMode ? (
+                      <span className="inline-flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onMouseDown={(event) => event.stopPropagation()}
+                          onClick={() => handleRequestDeleteEnvironment(environment.id, environment.environment)}
+                          aria-label={`Delete ${environment.environment}`}
+                          className="shrink-0 text-slate-300 dark:text-zinc-700 hover:text-rose-500 dark:hover:text-rose-400 transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                        {rowIndex + 1}
+                      </span>
+                    ) : (
+                      rowIndex + 1
+                    )}
+                    {renderRowResizeHandle(environment.id, rowIndex === filteredEnvironments.length - 1)}
+                  </td>
+                  {visibleColumns.map((column, colIndex) => {
+                    if (column.isCustom) return renderCustomColumnCell(environment, column.customColumn!, rowIndex, colIndex);
+                    if (column.key === 'actionItemsUpdates') return renderActionItemsCell(environment, rowIndex, colIndex);
+                    if (column.key === 'status') return renderStatusCell(environment, rowIndex, colIndex);
+                    return renderTextCell(environment, column as EnvironmentOverviewColumnDef, rowIndex, colIndex);
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </DataTableContainerSharedComponent>
+      </div>
+    )}
+
+      {environments.length > 0 && filteredEnvironments.length === 0 && (
+        <EmptyStateSharedComponent
+          icon={<FilterX className="w-6 h-6" />}
+          title="No matching Environments"
+          description="No environment matches the current search."
+        />
+      )}
+
+      {!isLoading && environments.length === 0 && (
+        <EmptyStateSharedComponent
+          icon={<ServerOff className="w-6 h-6" />}
+          title="No Environments yet"
+          description="Nothing has been loaded into the Environment Overview table yet."
+        />
+      )}
+
+      <CreateOptionModalController
+        isOpen={isOptionModalOpen}
+        onClose={() => {
+          setIsOptionModalOpen(false);
+          setOptionModalTarget(null);
+        }}
+        fieldName={optionModalTarget?.fieldName ?? 'Status'}
+        title={CREATE_OPTION_MODAL_COPY_BY_FIELD_NAME[optionModalTarget?.fieldName ?? 'Status'].title}
+        subtitle={CREATE_OPTION_MODAL_COPY_BY_FIELD_NAME[optionModalTarget?.fieldName ?? 'Status'].subtitle}
+        inputLabel={CREATE_OPTION_MODAL_COPY_BY_FIELD_NAME[optionModalTarget?.fieldName ?? 'Status'].inputLabel}
+        inputPlaceholder={
+          CREATE_OPTION_MODAL_COPY_BY_FIELD_NAME[optionModalTarget?.fieldName ?? 'Status'].inputPlaceholder
+        }
+        onCreated={handleOptionCreated}
+      />
+
+      <ConfirmationModalSharedComponent
+        isOpen={deletingActionItem !== null}
+        onClose={() => setDeletingActionItem(null)}
+        onConfirm={handleConfirmDeleteActionItem}
+        title="Delete Entry"
+        description={
+          deletingActionItem && (
+            <>
+              <p>This will permanently delete this entry:</p>
+              <p className="mt-2 italic text-slate-500 dark:text-zinc-400 whitespace-pre-wrap break-words">
+                "
+                {deletingActionItem.lineText.length > 150
+                  ? `${deletingActionItem.lineText.slice(0, 150)}…`
+                  : deletingActionItem.lineText}
+                "
+              </p>
+              <p className="mt-2">This cannot be undone.</p>
+            </>
+          )
+        }
+        confirmText="Delete Entry"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={deleteActionItemMutation.isPending}
+        maxWidth="md"
+      />
+
+      <ConfirmationModalSharedComponent
+        isOpen={deletingEnvironment !== null}
+        onClose={() => setDeletingEnvironment(null)}
+        onConfirm={handleConfirmDeleteEnvironment}
+        title="Delete Environment"
+        description={
+          deletingEnvironment && (
+            <>
+              <p>
+                This will remove "{deletingEnvironment.environmentName}" and all of its data from the table.
+              </p>
+              <p className="mt-2">This cannot be undone.</p>
+            </>
+          )
+        }
+        confirmText="Delete Environment"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={deleteEnvironmentOverviewMutation.isPending}
+        maxWidth="md"
+      />
+
+      <ContextMenuSharedComponent
+        isOpen={contextMenu.isOpen}
+        x={contextMenu.x}
+        y={contextMenu.y}
+        onClose={handleCloseContextMenu}
+        items={contextMenuItems}
+        minWidth={216}
+      />
+
+      <ContextMenuSharedComponent
+        isOpen={customColumnHeaderMenu.isOpen}
+        x={customColumnHeaderMenu.x}
+        y={customColumnHeaderMenu.y}
+        onClose={handleCloseCustomColumnHeaderMenu}
+        items={customColumnHeaderMenu.customColumn ? customColumnHeaderMenuItems(customColumnHeaderMenu.customColumn) : []}
+        minWidth={200}
+      />
+
+      <ConfirmationModalSharedComponent
+        isOpen={deletingCustomColumn !== null}
+        onClose={() => setDeletingCustomColumn(null)}
+        onConfirm={() => {
+          if (deletingCustomColumn) deleteCustomColumnMutation.mutate(deletingCustomColumn.id);
+        }}
+        title="Delete Column"
+        description={
+          deletingCustomColumn && (
+            <>
+              <p>This will remove "{deletingCustomColumn.headerName}" from the table.</p>
+              <p className="mt-2">This cannot be undone.</p>
+            </>
+          )
+        }
+        confirmText="Delete Column"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={deleteCustomColumnMutation.isPending}
+        maxWidth="md"
+      />
+
+      <AddCustomColorModalController
+        isOpen={isAddColorModalOpen}
+        onClose={() => setIsAddColorModalOpen(false)}
+        onCreated={() => {}}
+      />
+    </div>
+  );
+}
