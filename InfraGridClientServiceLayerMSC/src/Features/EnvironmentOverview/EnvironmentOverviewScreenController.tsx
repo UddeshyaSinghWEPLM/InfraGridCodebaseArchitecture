@@ -2485,7 +2485,7 @@ export default function EnvironmentOverviewScreenController(): React.JSX.Element
             ariaLabel="Search Environment Overview"
           />
           {isAdmin && (
-            <PrimaryActionButtonSharedComponent label="Add Environment" onClick={handleAddEnvironmentClick} size="md" />
+            <PrimaryActionButtonSharedComponent label="Add Environment" onClick={handleAddEnvironmentClick} size="md" className="!rounded-sm" />
           )}
 
           <div className="relative shrink-0">
@@ -2496,7 +2496,7 @@ export default function EnvironmentOverviewScreenController(): React.JSX.Element
               aria-haspopup="dialog"
               aria-expanded={isColumnDropdownOpen}
               aria-controls="column-visibility-dropdown-panel"
-              className="flex items-center gap-2 h-9 px-3.5 rounded-lg bg-slate-100 dark:bg-zinc-800/80 text-slate-700 dark:text-zinc-300 hairline-border hover:bg-slate-200 dark:hover:bg-zinc-700/80 transition-colors cursor-pointer text-xs font-semibold"
+              className="flex items-center gap-2 h-9 px-3.5 rounded-sm bg-slate-100 dark:bg-zinc-800/80 text-slate-700 dark:text-zinc-300 hairline-border hover:bg-slate-200 dark:hover:bg-zinc-700/80 transition-colors cursor-pointer text-xs font-semibold"
             >
               <Columns3 className="w-3.5 h-3.5" />
               <span>Columns</span>
