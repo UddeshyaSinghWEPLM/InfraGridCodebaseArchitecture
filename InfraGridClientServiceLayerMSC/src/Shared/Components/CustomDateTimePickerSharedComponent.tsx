@@ -238,15 +238,15 @@ export default function CustomDateTimePickerSharedComponent({
             usePortal
               ? ''
               : `absolute ${dropdownAnchor === 'right' ? 'right-0' : 'left-0'} top-full mt-1.5`
-          } z-50 bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-zinc-800 rounded-xl shadow-xl p-2 text-xs select-none max-w-[calc(100vw-24px)] ${dropdownClassName}`}
+          } z-50 bg-white dark:bg-[#0c0c0e] border border-slate-200 dark:border-zinc-800 rounded-sm shadow-xl p-2 text-xs select-none max-w-[calc(100vw-24px)] ${dropdownClassName}`}
         >
           {/* Mobile Tabbed Segmented Control (when in datetime mode on small screens) */}
           {mode === 'datetime' && (
-            <div className="flex sm:hidden items-center p-1 mb-2 bg-slate-100 dark:bg-zinc-900 rounded-lg">
+            <div className="flex sm:hidden items-center p-1 mb-2 bg-slate-100 dark:bg-zinc-900 rounded-sm">
               <button
                 type="button"
                 onClick={() => setActiveMobileTab('date')}
-                className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+                className={`flex-1 py-1.5 text-xs font-semibold rounded-sm transition-colors ${
                   activeMobileTab === 'date'
                     ? 'bg-white dark:bg-zinc-800 text-slate-900 dark:text-white shadow-xs'
                     : 'text-slate-600 dark:text-zinc-400'
@@ -257,7 +257,7 @@ export default function CustomDateTimePickerSharedComponent({
               <button
                 type="button"
                 onClick={() => setActiveMobileTab('time')}
-                className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+                className={`flex-1 py-1.5 text-xs font-semibold rounded-sm transition-colors ${
                   activeMobileTab === 'time'
                     ? 'bg-white dark:bg-zinc-800 text-slate-900 dark:text-white shadow-xs'
                     : 'text-slate-600 dark:text-zinc-400'
@@ -310,7 +310,7 @@ export default function CustomDateTimePickerSharedComponent({
             <button
               type="button"
               onClick={handleNowAction}
-              className="px-2.5 py-1 text-xs font-medium text-[#0C2086] dark:text-sky-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-md transition-colors cursor-pointer"
+              className="px-2.5 py-1 text-xs font-medium text-[#0C2086] dark:text-sky-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-sm transition-colors cursor-pointer"
             >
               Set to Now
             </button>
@@ -321,7 +321,7 @@ export default function CustomDateTimePickerSharedComponent({
                 ApplicationHapticsUtility.current.triggerHapticFeedback(12);
                 setIsOpen(false);
               }}
-              className="px-3 py-1 text-xs font-semibold bg-[#0C2086] text-white hover:bg-[#081765] rounded-md transition-colors cursor-pointer flex items-center gap-1 shadow-xs"
+              className="px-3 py-1 text-xs font-semibold bg-[#0C2086] text-white hover:bg-[#081765] rounded-sm transition-colors cursor-pointer flex items-center gap-1 shadow-xs"
             >
               <Check className="w-3.5 h-3.5" />
               Done
@@ -355,7 +355,7 @@ export default function CustomDateTimePickerSharedComponent({
             setIsOpen((prev) => !prev);
           }
         }}
-        className={`w-full flex items-center justify-between rounded-md bg-white dark:bg-[#0a0a0c] text-slate-900 dark:text-zinc-100 hairline-border-strong focus:outline-none focus:border-zinc-900 dark:focus:border-white transition-colors duration-200 select-none group text-left ${heightClass} ${
+        className={`w-full flex items-center justify-between rounded-sm bg-white dark:bg-[#0a0a0c] text-slate-900 dark:text-zinc-100 hairline-border-strong focus:outline-none focus:border-zinc-900 dark:focus:border-white transition-colors duration-200 select-none group text-left ${heightClass} ${
           error ? 'border-red-500 dark:border-red-500' : ''
         } ${disabled ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'cursor-pointer'} ${triggerClassName}`}
       >
@@ -386,7 +386,7 @@ export default function CustomDateTimePickerSharedComponent({
               }}
               title="Clear selection"
               aria-label="Clear selection"
-              className="p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+              className="p-1 rounded-sm text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
             >
               <X className="w-3.5 h-3.5" />
             </span>

@@ -172,7 +172,7 @@ export default function CustomDatePickerSharedComponent({
         <button
           type="button"
           onClick={handlePrevMonth}
-          className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+          className="w-7 h-7 flex items-center justify-center rounded-sm text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
           title="Previous month"
           aria-label="Previous month"
         >
@@ -187,7 +187,7 @@ export default function CustomDatePickerSharedComponent({
         <button
           type="button"
           onClick={handleNextMonth}
-          className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+          className="w-7 h-7 flex items-center justify-center rounded-sm text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
           title="Next month"
           aria-label="Next month"
         >
@@ -196,7 +196,7 @@ export default function CustomDatePickerSharedComponent({
       </div>
 
       {/* Calendar Grid Inset Box - matching Select Time container */}
-      <div className="border border-slate-200/80 dark:border-zinc-800 rounded-lg p-1.5 bg-slate-50/50 dark:bg-zinc-900/30">
+      <div className="border border-slate-200/80 dark:border-zinc-800 rounded-sm p-1.5 bg-slate-50/50 dark:bg-zinc-900/30">
         {/* Weekday Names Header */}
         <div className="grid grid-cols-7 gap-1 text-center pb-1 border-b border-slate-200/60 dark:border-zinc-800/60 mb-1">
           {WEEKDAY_NAMES.map((name) => (

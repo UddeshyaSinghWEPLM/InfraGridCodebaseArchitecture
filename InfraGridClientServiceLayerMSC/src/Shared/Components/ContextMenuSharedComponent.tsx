@@ -126,7 +126,7 @@ export default function ContextMenuSharedComponent({
             minWidth: `${minWidth}px`,
             zIndex: 9999,
           }}
-          className="bg-white/95 dark:bg-[#0c0c0e]/95 backdrop-blur-md border border-slate-200/90 dark:border-white/10 rounded-xl shadow-xl shadow-slate-900/10 dark:shadow-black/60 p-1.5 overflow-hidden text-xs select-none"
+          className="bg-white/95 dark:bg-[#0c0c0e]/95 backdrop-blur-md border border-slate-200/90 dark:border-white/10 rounded-sm shadow-xl shadow-slate-900/10 dark:shadow-black/60 p-1.5 overflow-hidden text-xs select-none"
           onContextMenu={(e) => e.preventDefault()}
         >
           {/* Optional Menu Header */}
@@ -155,7 +155,7 @@ export default function ContextMenuSharedComponent({
                       onClose();
                       item.onClick?.();
                     }}
-                    className={`w-full flex items-center justify-between gap-3 px-2.5 py-1.5 rounded-lg font-medium text-left transition-colors cursor-pointer ${
+                    className={`w-full flex items-center justify-between gap-3 px-2.5 py-1.5 rounded-sm font-medium text-left transition-colors cursor-pointer ${
                       item.disabled
                         ? 'opacity-40 cursor-not-allowed'
                         : item.isDestructive

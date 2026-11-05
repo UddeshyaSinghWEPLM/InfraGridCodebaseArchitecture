@@ -60,7 +60,7 @@ export default function CustomTimePickerSharedComponent({
       </div>
 
       {/* Dual Column Picker: Hours and Minutes */}
-      <div className="grid grid-cols-2 gap-2 border border-slate-200/80 dark:border-zinc-800 rounded-lg p-1.5 bg-slate-50/50 dark:bg-zinc-900/30">
+      <div className="grid grid-cols-2 gap-2 border border-slate-200/80 dark:border-zinc-800 rounded-sm p-1.5 bg-slate-50/50 dark:bg-zinc-900/30">
         {/* Hours Column */}
         <div className="flex flex-col">
           <div className="text-[10px] font-mono font-medium text-slate-400 dark:text-zinc-500 text-center pb-1 border-b border-slate-200/60 dark:border-zinc-800/60 mb-1">
