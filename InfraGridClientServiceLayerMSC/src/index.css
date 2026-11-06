@@ -450,3 +450,15 @@ html.table-density-compact .data-table-scroll-area td > button {
   opacity: 1 !important;
   transform: translate(-50%, -50%) scale(1.15) !important;
 }
+
+/* Must live inside Tailwind's own `utilities` layer - for !important
+   declarations, cascade layers take priority before specificity, so a
+   plain (unlayered) rule can never beat a layered Tailwind utility no
+   matter how specific it is. The doubled class selector then wins the
+   specificity tiebreak within that same layer against ButtonSharedComponent's
+   own primary-variant hover color. */
+@layer utilities {
+  .add-environment-button.add-environment-button:hover {
+    background-color: #026e90 !important;
+  }
+}
