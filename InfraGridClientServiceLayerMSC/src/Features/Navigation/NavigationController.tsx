@@ -86,7 +86,7 @@ export default function NavigationController({
               }}
               layoutId="activeTopNavPill"
               desktopOnly
-              activeTextClassName="text-[#0C2086] dark:text-zinc-100 font-semibold"
+              activeTextClassName="text-[#0291bc] dark:text-zinc-100 font-semibold"
               inactiveTextClassName="text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200"
               options={NavigationCON.PRIMARY_NAV_ITEMS.map((item) => ({
                 value: item.id,

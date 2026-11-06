@@ -583,7 +583,7 @@ export default function ResourcesScreenController(): React.JSX.Element {
                   max="100"
                   value={currentOpacity}
                   onChange={(e) => handleOpacityChange(Number(e.target.value))}
-                  className="w-full h-1.5 bg-slate-200 dark:bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-[#0C2086] dark:accent-blue-500"
+                  className="w-full h-1.5 bg-slate-200 dark:bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-[#0291bc] dark:accent-blue-500"
                 />
               </div>
             ),
@@ -771,7 +771,7 @@ export default function ResourcesScreenController(): React.JSX.Element {
       {/* Explains the table's own existing header-color convention (the two
           seeded system entries - StartStop_* custom-tag column headers
           already render with a red background, !bg-[#C41E3A], while every
-          other column header uses this app's iconic blue, bg-[#0C2086]) plus
+          other column header uses this app's iconic blue, bg-[#0291bc]) plus
           any additional entries a user has created via the "+" button below.
           Purely a reference list - creating/editing a legend never changes
           any actual table column's color. */}
@@ -863,7 +863,7 @@ export default function ResourcesScreenController(): React.JSX.Element {
                     // Ruby, distinguishing these as Azure-tag-sourced rather
                     // than part of the original spreadsheet's own columns -
                     // !-prefixed since TableHeaderCellSharedComponent's own
-                    // bg-[#0C2086] is baked into its className template, and
+                    // bg-[#0291bc] is baked into its className template, and
                     // two unprefixed utility classes targeting the same
                     // property don't reliably resolve by DOM/JSX order.
                     <TableHeaderCellSharedComponent

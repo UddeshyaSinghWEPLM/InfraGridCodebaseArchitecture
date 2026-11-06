@@ -45,7 +45,7 @@ const markdownComponents: Components = {
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="text-[#0C2086] dark:text-blue-400 underline underline-offset-2 hover:opacity-80"
+      className="text-[#0291bc] dark:text-blue-400 underline underline-offset-2 hover:opacity-80"
     >
       {children}
     </a>

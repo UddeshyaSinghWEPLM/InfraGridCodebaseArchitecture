@@ -20,7 +20,7 @@
   /* Table selection perimeter border (TableSelectionService) — lighter blue
      in dark mode for contrast, same pairing as this app's existing
      dark:ring-blue-400 focus rings. */
-  --table-selection-border-color: #0c2086;
+  --table-selection-border-color: #0291bc;
 
   --font-serif: 'Playfair Display', serif;
   --font-sans: 'Inter', 'Plus Jakarta Sans', sans-serif;
@@ -190,7 +190,7 @@ html.table-sticky-header .data-table-card {
 .data-table-sticky-header-container {
   position: static;
   overflow: hidden;
-  background-color: #0c2086;
+  background-color: #0291bc;
   border-top-left-radius: 0.25rem;
   border-top-right-radius: 0.25rem;
 }
@@ -218,7 +218,7 @@ html.scroll-pill-visible main {
 @keyframes global-search-row-highlight-flash {
   0%,
   35% {
-    background-color: rgba(12, 32, 134, 0.3);
+    background-color: rgba(2, 145, 188, 0.3);
   }
   100% {
     background-color: transparent;
@@ -449,16 +449,4 @@ html.table-density-compact .data-table-scroll-area td > button {
 [data-sonner-toast] [data-close-button]:hover {
   opacity: 1 !important;
   transform: translate(-50%, -50%) scale(1.15) !important;
-}
-
-/* Must live inside Tailwind's own `utilities` layer - for !important
-   declarations, cascade layers take priority before specificity, so a
-   plain (unlayered) rule can never beat a layered Tailwind utility no
-   matter how specific it is. The doubled class selector then wins the
-   specificity tiebreak within that same layer against ButtonSharedComponent's
-   own primary-variant hover color. */
-@layer utilities {
-  .add-environment-button.add-environment-button:hover {
-    background-color: #026e90 !important;
-  }
 }
